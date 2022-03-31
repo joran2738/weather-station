@@ -1,4 +1,4 @@
-# weerstation
+# Weerstation
 We zullen een weerstation realiseren dat bestaat uit een module buiten en een scherm binnen waar alle informatie getoond wordt.
 De modulle buiten zal sensoren bevatten voor de temperatuur, luchtvochtigheid, luchtdruk, neerslag en de lichtintensiteit. 
 De twee arduino’s van zowel binnen als buiten zullen door het net gevoed worden en communiceren draadloos met elkaar via lora modules.

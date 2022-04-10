@@ -21,4 +21,4 @@ de libraries die gedownload moeten worden, zijn:
 - TFT built in by arduino v.1.0.6
 
 de libraries die al standaard in arduino zitten:
-- <EEPROM.h>
+- <EEPROM.h> 

@@ -1,0 +1,24 @@
+De twee microcontrollers die gebruikt worden in dit project, zijn 2 arduino uno's rev.3.
+Deze kunnen op bol.com, otronic.nl en amazon voor onder de 20 euro gekocht worden.
+
+De componenten die gebruikt worden hebben wij op otronic.nl besteld. 
+De gebruikte componenten zijn:
+- Temperatuur,druk en luchtvochtigheidsensor: 5V versie van de 3 in 1 Bosch BME280 voor arduino 
+- GL5516 LDR Lichtgevoelige weerstand (Photoresistor)
+- Regensensor / Sneeuwsensor van otronic
+- Bewegingssensor met microgolf radar RCWL-051
+- SX1278 Ra-02 LoRa Module 433Mhz (2 keer)
+- 1.8 inch spi tft lcd display module st7735
+
+Arduino heeft zijn eigen IDE waarin code geschreven en gecompileerd kan worden. Deze kan van de officiële arduino site gedownload worden.
+https://www.arduino.cc/en/software 
+Voor er code kan geschreven worden moeten er libraries gedownload worden. De volgende link is een tutorial.
+https://docs.arduino.cc/software/ide-v1/tutorials/installing-libraries
+
+de libraries die gedownload moeten worden, zijn:
+- LoRa by Sandeep Mistry v.0.8.0
+- BME280 by Tyler Glenn v.3.0.0
+- TFT built in by arduino v.1.0.6
+
+de libraries die al standaard in arduino zitten:
+- <EEPROM.h>

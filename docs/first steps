@@ -15,10 +15,10 @@ https://www.arduino.cc/en/software
 Voor er code kan geschreven worden moeten er libraries gedownload worden. De volgende link is een tutorial.
 https://docs.arduino.cc/software/ide-v1/tutorials/installing-libraries
 
-de libraries die gedownload moeten worden, zijn:
+De libraries die gedownload moeten worden, zijn:
 - LoRa by Sandeep Mistry v.0.8.0
 - BME280 by Tyler Glenn v.3.0.0
 - TFT built in by arduino v.1.0.6
 
-de libraries die al standaard in arduino zitten:
+De libraries die al standaard in arduino zitten:
 - <EEPROM.h> 

@@ -18,7 +18,9 @@ https://docs.arduino.cc/software/ide-v1/tutorials/installing-libraries
 De libraries die gedownload moeten worden, zijn:
 - LoRa by Sandeep Mistry v.0.8.0
 - BME280 by Tyler Glenn v.3.0.0
-- TFT built in by arduino v.1.0.6
+- Adafruit ST7735 and ST7789 Library by Adafruit v.1.9.1
+- Adafruit GFX Library by Adafruit v.1.10.12
 
 De libraries die al standaard in arduino zitten:
 - <EEPROM.h> 
+- TFT built in by arduino v.1.0.6

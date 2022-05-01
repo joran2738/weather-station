@@ -19,30 +19,25 @@
 Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS,  TFT_DC, TFT_RST);
 
 // color definitions
-const uint16_t  Display_Color_Black        = 0x0000;
-const uint16_t  Display_Color_Blue         = 0x001F;
-const uint16_t  Display_Color_Red          = 0xF800;
-const uint16_t  Display_Color_Green        = 0x07E0;
-const uint16_t  Display_Color_Cyan         = 0x07FF;
-const uint16_t  Display_Color_Magenta      = 0xF81F;
-const uint16_t  Display_Color_Yellow       = 0xFFE0;
-const uint16_t  Display_Color_White        = 0xFFFF;
+const uint16_t  display_color_black        = 0x0000;
+const uint16_t  display_color_blue         = 0x001F;
+const uint16_t  display_color_red          = 0xF800;
+const uint16_t  display_color_green        = 0x07E0;
+const uint16_t  display_color_cyan         = 0x07FF;
+const uint16_t  display_color_magenta      = 0xF81F;
+const uint16_t  display_color_yellow       = 0xFFE0;
+const uint16_t  display_color_white        = 0xFFFF;
 
-const uint16_t  Display_Color_Orange       = 0xff7a05;
-const uint16_t  Display_Color_Grey         = 0x852a6;
-const uint16_t  Display_Color_Sun          = 0xffb405;
-const uint16_t  Display_Color_Dark_Grey    = 0x7d4b4b;
+const uint16_t  display_color_orange       = 0xff7a05;
+const uint16_t  display_color_grey         = 0x852a6;
+const uint16_t  display_color_sun          = 0xffb405;
+const uint16_t  display_color_dark_grey    = 0x7d4b4b;
 
 
 // The colors we actually want to use
-uint16_t        Display_Text_Color         = Display_Color_White;
-uint16_t        Display_Backround_Color    = Display_Color_Blue;
+uint16_t        display_text_color         = display_color_white;
+uint16_t        display_background_color    = display_color_blue;
 
-// assume the display is off until configured in setup()
-bool            isDisplayVisible        = false;
-
-// declare size of working string buffers. Basic strlen("d hh:mm:ss") = 10
-const size_t    MaxString               = 16;
 
 //LDR init
 int LDRPin = A2;    // select the input pin for the potentiometer
@@ -78,6 +73,9 @@ BME280::TempUnit tempUnit(BME280::TempUnit_Celsius);
 BME280::PresUnit presUnit(BME280::PresUnit_hPa);
 EnvironmentCalculations::TempUnit     envTempUnit =  EnvironmentCalculations::TempUnit_Celsius;
 
+//date and time
+int last_month, last_day,last_hour,last_minute;
+
 
 /////////////////////////////////////////////////////////////////
 //setup                                                        //
@@ -96,12 +94,9 @@ void setup() {
 
 // initialise the display
     tft.setFont();
-    tft.fillScreen(Display_Backround_Color);
-    tft.setTextColor(Display_Text_Color);
+    tft.fillScreen(display_background_color);
+    tft.setTextColor(display_text_color);
     tft.setTextSize(2);
-
-    // the display is now on
-    isDisplayVisible = true;
 
   Serial.println("Initialized");
 
@@ -145,7 +140,7 @@ void loop() {
   rain_calc(rain_val);
   bme.read(pres, temp, hum, tempUnit, presUnit);
   print_BME280_data(pres,temp,hum);
-  print_date(5,1,10,10);
+  modify_date(5,1,10,10);
   delay(1000);
 }
 
@@ -154,8 +149,8 @@ void loop() {
 /////////////////////////////////////////////////////////////////
 
 void lines(){
-  tft.drawLine(55, 0, 55,55, Display_Color_White);
-  tft.drawLine(55, 55, 0,55, Display_Color_White);
+  tft.drawLine(55, 0, 55,55, display_color_white);
+  tft.drawLine(55, 55, 0,55, display_color_white);
   
 }
 
@@ -179,80 +174,62 @@ void rain_icon(){
   int offset_y = 0;
   for (int i = 0; i <= 5; i++) {
     offset_y = random(0, 9);
-    tft.drawLine(sunx - offset_x - 1 + (i*offset_drop) , suny + 18 + offset_y, sunx - offset_x - 1 + (i*offset_drop) ,suny + 21 + offset_y, Display_Color_Cyan);
-    tft.drawLine(sunx - offset_x + (i*offset_drop)     , suny + 15 + offset_y, sunx - offset_x + (i*offset_drop)     ,suny + 22 + offset_y, Display_Color_Cyan);
-    tft.drawLine(sunx - offset_x + 1 +(i*offset_drop)  , suny + 18 + offset_y, sunx - offset_x + 1 +(i*offset_drop)  ,suny + 21 + offset_y, Display_Color_Cyan);
+    tft.drawLine(sunx - offset_x - 1 + (i*offset_drop) , suny + 18 + offset_y, sunx - offset_x - 1 + (i*offset_drop) ,suny + 21 + offset_y, display_color_cyan);
+    tft.drawLine(sunx - offset_x + (i*offset_drop)     , suny + 15 + offset_y, sunx - offset_x + (i*offset_drop)     ,suny + 22 + offset_y, display_color_cyan);
+    tft.drawLine(sunx - offset_x + 1 +(i*offset_drop)  , suny + 18 + offset_y, sunx - offset_x + 1 +(i*offset_drop)  ,suny + 21 + offset_y, display_color_cyan);
   }
 }
 
 void overcast_night(){
   overcast_clear();
-  tft.fillCircle(sunx, suny, sun, Display_Color_Grey);
-  tft.fillCircle(sunx+5, suny, sun-3, Display_Backround_Color);
+  tft.fillCircle(sunx, suny, sun, display_color_grey);
+  tft.fillCircle(sunx+5, suny, sun-3, display_background_color);
 }
 void overcast_day(){
   overcast_clear();
-  tft.fillCircle(sunx, suny, sun, Display_Color_Sun);
+  tft.fillCircle(sunx, suny, sun, display_color_sun);
 }
-void overcast_dark(){
+void overcast_dark_and_office(uint16_t color){
   overcast_clear();
   
-  tft.fillCircle(sunx+12, suny+11, sun-1, Display_Color_Grey);
-  tft.fillCircle(sunx-12, suny+11, sun-5, Display_Color_Grey);
-  
- 
-  tft.fillCircle(sunx+12, suny+11, sun-3, Display_Color_Dark_Grey);
-  tft.fillCircle(sunx-9, suny+11, sun-7, Display_Color_Dark_Grey);
-  tft.fillCircle(sunx-12, suny+11, sun-7, Display_Color_Dark_Grey);
-  tft.fillCircle(sunx-3, suny, sun-5, Display_Color_Grey);
-  tft.fillCircle(sunx-3, suny, sun-7, Display_Color_Dark_Grey);
-  tft.fillCircle(sunx, suny+4, sun-7, Display_Color_Dark_Grey);
-  
-
-  tft.fillCircle(sunx+12, suny+11, sun-10, Display_Color_Grey);
-  tft.fillCircle(sunx+14, suny+13, sun-9, Display_Color_Dark_Grey);
-}
-void overcast_office(){
-  overcast_clear();
-  
-  tft.fillCircle(sunx+12, suny+11, sun-1, Display_Color_Grey);
-  tft.fillCircle(sunx-12, suny+11, sun-5, Display_Color_Grey);
+  tft.fillCircle(sunx+12, suny+11, sun-1, display_color_grey);
+  tft.fillCircle(sunx-12, suny+11, sun-5, display_color_grey);
   
   
-  tft.fillCircle(sunx+12, suny+11, sun-3, Display_Color_White);
-  tft.fillCircle(sunx-9, suny+11, sun-7, Display_Color_White);
-  tft.fillCircle(sunx-12, suny+11, sun-7, Display_Color_White);
-  tft.fillCircle(sunx-3, suny, sun-5, Display_Color_Grey);
-  tft.fillCircle(sunx-3, suny, sun-7, Display_Color_White);
+  tft.fillCircle(sunx+12, suny+11, sun-3, color);
+  tft.fillCircle(sunx-9, suny+11, sun-7, color);
+  tft.fillCircle(sunx-12, suny+11, sun-7, color);
+  tft.fillCircle(sunx-3, suny, sun-5, display_color_grey);
+  tft.fillCircle(sunx-3, suny, sun-7, color);
   
-  tft.fillCircle(sunx, suny+4, sun-7, Display_Color_White);
+  tft.fillCircle(sunx, suny+4, sun-7, color);
   
 
-  tft.fillCircle(sunx+12, suny+11, sun-10, Display_Color_Grey);
-  tft.fillCircle(sunx+14, suny+13, sun-9, Display_Color_White);
+  tft.fillCircle(sunx+12, suny+11, sun-10, display_color_grey);
+  tft.fillCircle(sunx+14, suny+13, sun-9, color);
 }
 
 void overcast_cloudy(){
   
-  tft.fillCircle(sunx+10, suny+10, sun-2, Display_Color_Orange);
-  tft.fillCircle(sunx-10, suny+10, sun-6, Display_Color_Orange);
+  tft.fillCircle(sunx+10, suny+10, sun-2, display_color_orange);
+  tft.fillCircle(sunx-10, suny+10, sun-6, display_color_orange);
   
-  tft.fillCircle(sunx+12, suny+11, sun-1, Display_Color_Grey);
-  tft.fillCircle(sunx-12, suny+11, sun-5, Display_Color_Grey);
+  tft.fillCircle(sunx+12, suny+11, sun-1, display_color_grey);
+  tft.fillCircle(sunx-12, suny+11, sun-5, display_color_grey);
   
-  tft.fillCircle(sunx+12, suny+11, sun-3, Display_Color_White);
-  tft.fillCircle(sunx-9, suny+11, sun-7, Display_Color_White);
-  tft.fillCircle(sunx-12, suny+11, sun-7, Display_Color_White);
+  tft.fillCircle(sunx+12, suny+11, sun-3, display_color_white);
+  tft.fillCircle(sunx-9, suny+11, sun-7, display_color_white);
+  tft.fillCircle(sunx-12, suny+11, sun-7, display_color_white);
 
-  tft.fillCircle(sunx+12, suny+11, sun-10, Display_Color_Grey);
-  tft.fillCircle(sunx+14, suny+13, sun-9, Display_Color_White);
+  tft.fillCircle(sunx+12, suny+11, sun-10, display_color_grey);
+  tft.fillCircle(sunx+14, suny+13, sun-9, display_color_white);
 }
 
 
 
 void overcast_clear(){
 
-  tft.fillRect(0, 0 , 55, 55, Display_Backround_Color);
+  tft.fillRect(0, 0 , 55, 55, display_background_color);
   
 }
 
@@ -276,11 +253,11 @@ void calc_overcast_light(int LDR,int day_or_night){
   // change lux value to overcast type
   if (lux<4 && day_or_night == 1){
     strcpy(overcast,"dark");
-    overcast_dark();
+    overcast_dark_and_office(display_color_dark_grey);
   }
   else if (lux<10  && day_or_night == 1){
     strcpy(overcast,"office");
-    overcast_office();
+    overcast_dark_and_office(display_color_white);
   }
   else if (lux<20  && day_or_night == 1){
     strcpy(overcast,"cloudy");
@@ -290,11 +267,11 @@ void calc_overcast_light(int LDR,int day_or_night){
   }
   else if (lux<200  && day_or_night == 0){
     strcpy(overcast,"dark");
-    overcast_dark();
+    overcast_dark_and_office(display_color_dark_grey);
   }
   else if (lux<1250 && day_or_night == 0){
     strcpy(overcast,"office"); 
-    overcast_office();
+    overcast_dark_and_office(display_color_white);
   }
   else if (lux<2500 && day_or_night == 0){
     strcpy(overcast,"cloudy");
@@ -376,13 +353,9 @@ void print_BME280_data(int pres, int temp, int hum){
   int x_placement = 3, y_placement = 60, y_offset = 25;
   int heatindex = EnvironmentCalculations::HeatIndex(temp, hum, envTempUnit);
 
-
-  print_data(last_pres, last_temp, last_hum, last_heatindex,Display_Backround_Color);
-
-
+  print_data(last_pres, last_temp, last_hum, last_heatindex,display_background_color);
   
-  
-  print_data(pres, temp, hum, heatindex, Display_Text_Color);
+  print_data(pres, temp, hum, heatindex, display_text_color);
 
   last_temp = temp;
   last_heatindex = heatindex;
@@ -392,7 +365,8 @@ void print_BME280_data(int pres, int temp, int hum){
 }
 
 /////////////////////////////////////////////////////////////////
-//this function clears the old BME280 data on the screen       //
+//this function clears the old and puts the new BME280 data    //
+//on the screen                                                //
 /////////////////////////////////////////////////////////////////
 void print_data(int pres, int temp, int hum, int heatindex,uint16_t color){
   
@@ -412,15 +386,30 @@ void print_data(int pres, int temp, int hum, int heatindex,uint16_t color){
   tft.print(pres+String("hPa"));
 }
 /////////////////////////////////////////////////////////////////
-//this function places the new BME280 data on the screen       //
+//this function gets the time and date on the screen           //
 /////////////////////////////////////////////////////////////////
-void print_date(int month,int day,int hour, int minute){
+void modify_date(int month,int day,int hour, int minute){
+
+  print_date(last_month, last_day, last_hour, last_minute, display_background_color);
+  print_date(month, day, hour, minute, display_text_color);
+  
+  last_month = month;
+  last_day = day;
+  last_hour = hour;
+  last_minute = minute;
+}
+
+/////////////////////////////////////////////////////////////////
+//this function clears the old and puts the new time and date  //
+//on the screen                                                //
+/////////////////////////////////////////////////////////////////
+void print_date(int month,int day,int hour, int minute,uint16_t color){
+  
   int x_placement = 58, y_placement = 5, y_offset = 25;
+  tft.setTextColor(color);
   
   tft.setCursor(x_placement, y_placement);
   tft.print(hour+String(":")+minute);
   tft.setCursor(x_placement, y_placement + y_offset);
-  tft.print(month+String("/")+day);
-
-  
+  tft.print(month+String("/")+day); 
 }

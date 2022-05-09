@@ -1,5 +1,7 @@
 
+https://google.github.io/styleguide/cppguide.html 
 
+our rules:
 
   - tabs = 2 spaces
   - double quotes

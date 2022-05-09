@@ -5,12 +5,13 @@ our rules:
 
   - tabs = 2 spaces
   - double quotes
-  - give a name that represent what the variable is or the function does
+  - give a name, in English, that represent what the variable is or the function does
     with _ as space
-    : lees_sensor_uit instead of LeesSensorUit
+    : read_sensor instead of ReadSensor
   - No capitals
   - don't be scared to comment
-  - Always give an explanation of what a function does
+  - Always give an explanation of what a function does acording to the following picture:
+  ![format function comment](https://github.com/joran2738/weatherstation/blob/[branch]/image.jpg?raw=true)
   - comments inside a function:
     single line before commands that belong together
     if a single line of code needs explaination -> just write comment next to it

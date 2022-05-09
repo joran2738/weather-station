@@ -10,8 +10,7 @@ our rules:
     : read_sensor instead of ReadSensor
   - No capitals
   - don't be scared to comment
-  - Always give an explanation of what a function does acording to the following picture:
-  ![format function comment](https://github.com/joran2738/weatherstation/docs/images/commentformat.jpg?raw=true)
+  - Always give an explanation of what a function does
   - comments inside a function:
     single line before commands that belong together
     if a single line of code needs explaination -> just write comment next to it
@@ -20,6 +19,6 @@ our rules:
     do something;
     }
     
-  
+  an example is given in /docs/images/formatcomments
   
 

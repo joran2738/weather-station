@@ -1,186 +1,197 @@
-//initialise libraries
+// include libraries
 #include <SPI.h>
 #include <LoRa.h>
+#include <EnvironmentCalculations.h>
+#include <BME280I2C.h>
+#include <Wire.h>
 
-//initialise variables
-int counter = 0;
-int hold = 0;
+#define SERIAL_BAUD 115200 //define serial baud rate
 
-String dataset_string = ""; // this is the string that the LORA module receives
+// define bme settings and variables
+BME280I2C bme;    // Default : forced mode, standby time = 1000 ms
+                  // Oversampling = pressure ×1, temperature ×1, humidity ×1, filter off,
+float temp(NAN), hum(NAN), pres(NAN);
+float heatindex;
 
-// mi and mifeel resemble whether the temperature is negative or not,
-//this is needed because the function to get data out of the string doesn't read negative numbers
+//define rain variables
+int rain_pin = A0;    // select the input pin for the rain sensor
+int rain_value = 0;  // variable to store the value coming from the sensor
 
-//temperature
-int mi;  
-int tempe = 0;
+//define LDR variables
+int LDR_pin = A2;    // select the input pin for the LDR
+uint16_t LDR_value = 0;  // variable to store the value coming from the sensor
+int lux;
 
-//feel temperature
-int mifeel;
-int feeling = 0;
+String dataset_string = ""; // this is the string that gets send back to the inside module
 
-//other data
-int humi = 0;
-int presu = 0;
-int light = 0;
-int rain = 0;
-
-int data;   // is used for a buffer to get data out of the string
-
-//debugging mode
-bool debug = false;
-
-/////////////////////////////////////////////////////////////////
-//setup                                                        //
-/////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////
+// setup                                                        //
+//////////////////////////////////////////////////////////////////
 void setup() {
   Serial.begin(9600);
   while (!Serial);
+  
+  Wire.begin();
 
-  Serial.println("LoRa Sender");
+  while(!bme.begin())
+  {
+    Serial.println("Could not find BME280 sensor!");
+    delay(1000);
+  }
 
-  if (!LoRa.begin(433E6) && !debug) {
+  switch(bme.chipModel())
+  {
+     case BME280::ChipModel_BME280:
+       Serial.println("Found BME280 sensor! Success.");
+       break;
+     case BME280::ChipModel_BMP280:
+       Serial.println("Found BMP280 sensor! No Humidity available.");
+       break;
+     default:
+       Serial.println("Found UNKNOWN sensor! Error!");
+  }
+
+  Serial.println("LoRa Receiver");
+  if (!LoRa.begin(433E6)) {
     Serial.println("Starting LoRa failed!");
     while (1);
+
+  
   }
 }
 
-/////////////////////////////////////////////////////////////////
-// loop                                                        //
-/////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////
+// loop                                                         //
+//////////////////////////////////////////////////////////////////
 void loop() {
-  
-  hold = request();
-  if (hold != 0){
-    listen();
-    get_data_out();
+  int hold = 0;
+  hold = wait();
+  if (hold == 1){
+    dataset_string = "";
+    read_bme();
+    read_rain();
+    read_LDR();
+    to_string();
+    reply();
   }
   
-  delay(2000);
 }
 
-/////////////////////////////////////////////////////////////////
-// this function requests data from the outside module         //
-// it returns 1 so that the loop will only listen for data till//
-// it has recieved it                                          //
-/////////////////////////////////////////////////////////////////
-int request(){
-  Serial.print("Sending packet: ");
-  Serial.println(counter);
+//////////////////////////////////////////////////////////////////
+// this function waits for a request from the inside module     //
+//////////////////////////////////////////////////////////////////
+int wait(){
+  // try to parse packet
+  int packetSize = LoRa.parsePacket();
+  if (packetSize) {
+    // received a packet
+    Serial.print("Received packet '");
+
+    // read packet
+    while (LoRa.available()) {
+      Serial.print((char)LoRa.read());
+    }
+
+    // print RSSI of packet
+    Serial.print("' with RSSI ");
+    Serial.println(LoRa.packetRssi());
+    return 1;
+  }
+  return 0;
+}
+
+//////////////////////////////////////////////////////////////////
+// this function sends the data back to the inside module       //
+//////////////////////////////////////////////////////////////////
+void reply(){
+  Serial.print("replying: ");
+  Serial.println(dataset_string);
 
   // send packet
-  if (!debug){
-    LoRa.beginPacket();
-    LoRa.print("hello ");
-    LoRa.print(counter);
-    LoRa.endPacket();
-    }
-  counter++;
-  return 1;
+  LoRa.beginPacket();
+  LoRa.print(dataset_string);
+  LoRa.endPacket();
 }
 
-/////////////////////////////////////////////////////////////////
-// this function waits for the data returned from the outside  //
-// module                                                      //
-/////////////////////////////////////////////////////////////////
-void listen(){
-  
-  dataset_string = "";
-  
-  // try to parse a packet
-  while (hold && !debug){
-    Serial.println("listening...");
-    int packetSize = LoRa.parsePacket(); 
-    if (packetSize) {
-      // received a packet
-      //Serial.print("Received packet '");
-  
-      // read packet
-      while (LoRa.available()) {
-        dataset_string += (char)LoRa.read();
-      }
-      
-      //Serial.println(dataset_string);
-      //Serial.println(dataset_string.length());
-      // print RSSI of packet
-      //Serial.print("' with RSSI ");
-      //Serial.println(LoRa.packetRssi());
-      
-      hold = 0;
-    }
-  }
-  if (debug){
-    dataset_string = "1,24,1,24,1016,55,3000,920";
-  }
+//////////////////////////////////////////////////////////////////
+// this function reads the data from the BME280 sensor          //
+//////////////////////////////////////////////////////////////////
+void read_bme() {
+
+   BME280::TempUnit tempUnit(BME280::TempUnit_Celsius);
+   BME280::PresUnit presUnit(BME280::PresUnit_hPa);
+   EnvironmentCalculations::TempUnit     envTempUnit =  EnvironmentCalculations::TempUnit_Celsius;
+
+   bme.read(pres, temp, hum, tempUnit, presUnit);
+
+   heatindex = EnvironmentCalculations::HeatIndex(temp, hum, envTempUnit);
+
 }
 
-/////////////////////////////////////////////////////////////////
-// this functions gets the data out of the string returned from//
-// the outside module                                          //
-/////////////////////////////////////////////////////////////////
-void get_data_out(){
-  uint8_t count = 0;
-  char data_array[40];
-  dataset_string.toCharArray(data_array,40);
+//////////////////////////////////////////////////////////////////
+// this function reads the value from the rain sensor           //
+//////////////////////////////////////////////////////////////////
+void read_rain(){
+  rain_value = analogRead(rain_pin);
+  //Serial.println(rain_value);
+  
+}
 
-  data = atof(strtok(data_array,","));
-  mi = data;
-  //Serial.print(String(mi)+String(count));
+//////////////////////////////////////////////////////////////////
+// this function reads the value from the LDR voltage devider   //
+//////////////////////////////////////////////////////////////////
+void read_LDR(){
+  float voltage;
+  float res;
   
-  while(data != NULL){
-        
-    data = atof(strtok(NULL, ","));
-    //Serial.println("data"+String(data)); 
-    
-    if (count == 0){
-      tempe = data;
-      //Serial.println(String(tempe)+";"+String(count));
-      count += 1;
-    }
-    
-    else if (count == 1){
-      mifeel = data;
-      //Serial.println(String(mifeel)+";"+String(count));
-      count += 1;
-    }
-    else if (count == 2){
-      feeling = data;
-      //Serial.println(String(feeling)+";"+String(count));
-      count += 1;
-    }
-    else if (count == 3){
-      humi = data;
-      //Serial.println(String(humi)+";"+String(count));
-      count += 1;
-    }
-    else if (count == 4){
-      presu = data;
-      //Serial.println(String(presu)+";"+String(count));
-      count += 1;
-    }
-    else if (count == 5){
-      light = data;
-      //Serial.println(String(light)+";"+String(count));
-      count += 1;
-    }
-    else if (count == 6){
-      rain = data;
-      //Serial.println(String(rain)+";"+String(count));
-      count += 1;
-    }  
+  LDR_value = analogRead(LDR_pin);
+  
+  //translate analog signal to voltage, to resistance of the LDR, to lightintensity
+  voltage = ((float)LDR_value / 1023) * 5;
+  res = (voltage /((5 - voltage)/ 4.610));
+  lux = 500 / res;
+  //Serial.print(lux);
+  
+}
+//////////////////////////////////////////////////////////////////
+// this function puts all the data together in a string to send //
+// to the inside module                                         //
+// format: "sign,temperature,sign,feelstemperature,humidity,    //
+// pressure,lightintensity,rain"                                //
+//////////////////////////////////////////////////////////////////
+void to_string(){
+
+  if (temp<0){
+    dataset_string += "1,";
   }
+  else{
+    dataset_string += "2,";
+  }
+  dataset_string += String(int(temp));
+  dataset_string += ",";
+  if (heatindex<0){
+    dataset_string += "1,";
+  }
+  else{
+    dataset_string += "2,";
+  }
+  dataset_string += String(int(heatindex));
+  dataset_string += ",";
+
+  dataset_string += String(int(hum));
+  dataset_string += ",";
   
-  //Serial.println("mi"+String(mi));
-  Serial.println("temp :"+String(tempe*(((mi-1)*2)-1)));
-  //Serial.println("mifeel"+String(mifeel));
-  Serial.println("feel :"+String(feeling*(((mifeel-1)*2)-1)));
-  Serial.println("hum :"+String(humi));
-  Serial.println("pres :"+String(presu));
-  Serial.println("lux :"+String(light));
-  Serial.println("rain :"+String(rain));
+  dataset_string += String(int(pres));
+  dataset_string += ",";
   
-  //Serial.println(String(rain)+String(counter));
-  
-  //Serial.println(String(rain==counter));
+  dataset_string += String(lux);
+  dataset_string += ",";
+
+  if (rain_value < 950){
+    dataset_string += "1,";
+  }
+  else{
+    dataset_string += "2,";
+  }
   
 }

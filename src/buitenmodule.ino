@@ -1,130 +1,186 @@
-﻿
-///LORA///////////////////////////////
-#include <SPI.h>              // include libraries
+//initialise libraries
+#include <SPI.h>
 #include <LoRa.h>
 
-const int csPin = 7;          // LoRa radio chip select
-const int resetPin = 6;       // LoRa radio reset
-const int irqPin = 1;         // change for your board; must be a hardware interrupt pin
+//initialise variables
+int counter = 0;
+int hold = 0;
 
-String outgoing;              // outgoing message
+String dataset_string = ""; // this is the string that the LORA module receives
 
-byte msgCount = 0;            // count of outgoing messages
-byte localAddress = 0xBB;     // address of this device
-byte destination = 0xFF;      // destination to send to
-long lastSendTime = 0;        // last send time
-int interval = 2000;          // interval between sends
+// mi and mifeel resemble whether the temperature is negative or not,
+//this is needed because the function to get data out of the string doesn't read negative numbers
 
-///BME280////////////////////////////
-#include <BME280I2C.h>
-#include <Wire.h>             // Needed for legacy versions of Arduino.
+//temperature
+int mi;  
+int tempe = 0;
 
-#define SERIAL_BAUD 9600
+//feel temperature
+int mifeel;
+int feeling = 0;
 
-/* Recommended Modes -
-   Based on Bosch BME280I2C environmental sensor data sheet.
+//other data
+int humi = 0;
+int presu = 0;
+int light = 0;
+int rain = 0;
 
-Weather Monitoring :
-   forced mode, 1 sample/minute
-   pressure ×1, temperature ×1, humidity ×1, filter off
-   Current Consumption =  0.16 μA
-   RMS Noise = 3.3 Pa/30 cm, 0.07 %RH
-   Data Output Rate 1/60 Hz
+int data;   // is used for a buffer to get data out of the string
 
-Humidity Sensing :
-   forced mode, 1 sample/second
-   pressure ×0, temperature ×1, humidity ×1, filter off
-   Current Consumption = 2.9 μA
-   RMS Noise = 0.07 %RH
-   Data Output Rate =  1 Hz
+//debugging mode
+bool debug = false;
 
-Indoor Navigation :
-   normal mode, standby time = 0.5ms
-   pressure ×16, temperature ×2, humidity ×1, filter = x16
-   Current Consumption = 633 μA
-   RMS Noise = 0.2 Pa/1.7 cm
-   Data Output Rate = 25Hz
-   Filter Bandwidth = 0.53 Hz
-   Response Time (75%) = 0.9 s
+/////////////////////////////////////////////////////////////////
+//setup                                                        //
+/////////////////////////////////////////////////////////////////
+void setup() {
+  Serial.begin(9600);
+  while (!Serial);
 
+  Serial.println("LoRa Sender");
 
-Gaming :
-   normal mode, standby time = 0.5ms
-   pressure ×4, temperature ×1, humidity ×0, filter = x16
-   Current Consumption = 581 μA
-   RMS Noise = 0.3 Pa/2.5 cm
-   Data Output Rate = 83 Hz
-   Filter Bandwidth = 1.75 Hz
-   Response Time (75%) = 0.3 s
-
-*/
-
-BME280I2C::Settings settings(
-   BME280::OSR_X1,
-   BME280::OSR_X1,
-   BME280::OSR_X1,
-   BME280::Mode_Forced,
-   BME280::StandbyTime_1000ms,
-   BME280::Filter_Off,
-   BME280::SpiEnable_False,
-   BME280I2C::I2CAddr_0x76 // I2C address. I2C specific.
-);
-
-BME280I2C bme(settings);
-
-///regensensor////////////////////////
-int regensensor = A0;    // select the input pin for the rainsensor
-int regen = 0;  // variable to store the value coming from the sensor
-
-///LDR////////////////////////////////
-int LDRsensor = A1;    // select the input pin for the rainsensor
-int LDR = 0;  // variable to store the value coming from the sensor
-
-//////////////////////////////////////////////////////////////////
-void setup()
-{
-  Serial.begin(SERIAL_BAUD);
-
-  while(!Serial) {} // Wait
-  
-///LORA///////////////////////////////
-  Serial.println("LoRa Duplex");
-  // override the default CS, reset, and IRQ pins (optional)
-  LoRa.setPins(csPin, resetPin, irqPin);// set CS, reset, IRQ pin
-
-  if (!LoRa.begin(433E6)) {             // initialize ratio at 915 MHz
-    Serial.println("LoRa init failed. Check your connections.");
-    while (true);                       // if failed, do nothing
+  if (!LoRa.begin(433E6) && !debug) {
+    Serial.println("Starting LoRa failed!");
+    while (1);
   }
-
-  Serial.println("LoRa init succeeded.");
-
-///BME280////////////////////////////
-  Wire.begin();
-  while(!bme.begin())
-  {
-    Serial.println("Could not find BME280I2C sensor!");
-    delay(1000);
-  }
-
-  switch(bme.chipModel())
-  {
-     case BME280::ChipModel_BME280:
-       Serial.println("Found BME280 sensor! Success.");
-       break;
-     case BME280::ChipModel_BMP280:
-       Serial.println("Found BMP280 sensor! No Humidity available.");
-       break;
-     default:
-       Serial.println("Found UNKNOWN sensor! Error!");
-  }
-
-   // Change some settings before using.
-   settings.tempOSR = BME280::OSR_X4;
-
-   bme.setSettings(settings);
 }
-void loop(){
+
+/////////////////////////////////////////////////////////////////
+// loop                                                        //
+/////////////////////////////////////////////////////////////////
+void loop() {
   
-  
+  hold = request();
+  if (hold != 0){
+    listen();
+    get_data_out();
   }
+  
+  delay(2000);
+}
+
+/////////////////////////////////////////////////////////////////
+// this function requests data from the outside module         //
+// it returns 1 so that the loop will only listen for data till//
+// it has recieved it                                          //
+/////////////////////////////////////////////////////////////////
+int request(){
+  Serial.print("Sending packet: ");
+  Serial.println(counter);
+
+  // send packet
+  if (!debug){
+    LoRa.beginPacket();
+    LoRa.print("hello ");
+    LoRa.print(counter);
+    LoRa.endPacket();
+    }
+  counter++;
+  return 1;
+}
+
+/////////////////////////////////////////////////////////////////
+// this function waits for the data returned from the outside  //
+// module                                                      //
+/////////////////////////////////////////////////////////////////
+void listen(){
+  
+  dataset_string = "";
+  
+  // try to parse a packet
+  while (hold && !debug){
+    Serial.println("listening...");
+    int packetSize = LoRa.parsePacket(); 
+    if (packetSize) {
+      // received a packet
+      //Serial.print("Received packet '");
+  
+      // read packet
+      while (LoRa.available()) {
+        dataset_string += (char)LoRa.read();
+      }
+      
+      //Serial.println(dataset_string);
+      //Serial.println(dataset_string.length());
+      // print RSSI of packet
+      //Serial.print("' with RSSI ");
+      //Serial.println(LoRa.packetRssi());
+      
+      hold = 0;
+    }
+  }
+  if (debug){
+    dataset_string = "1,24,1,24,1016,55,3000,920";
+  }
+}
+
+/////////////////////////////////////////////////////////////////
+// this functions gets the data out of the string returned from//
+// the outside module                                          //
+/////////////////////////////////////////////////////////////////
+void get_data_out(){
+  uint8_t count = 0;
+  char data_array[40];
+  dataset_string.toCharArray(data_array,40);
+
+  data = atof(strtok(data_array,","));
+  mi = data;
+  //Serial.print(String(mi)+String(count));
+  
+  while(data != NULL){
+        
+    data = atof(strtok(NULL, ","));
+    //Serial.println("data"+String(data)); 
+    
+    if (count == 0){
+      tempe = data;
+      //Serial.println(String(tempe)+";"+String(count));
+      count += 1;
+    }
+    
+    else if (count == 1){
+      mifeel = data;
+      //Serial.println(String(mifeel)+";"+String(count));
+      count += 1;
+    }
+    else if (count == 2){
+      feeling = data;
+      //Serial.println(String(feeling)+";"+String(count));
+      count += 1;
+    }
+    else if (count == 3){
+      humi = data;
+      //Serial.println(String(humi)+";"+String(count));
+      count += 1;
+    }
+    else if (count == 4){
+      presu = data;
+      //Serial.println(String(presu)+";"+String(count));
+      count += 1;
+    }
+    else if (count == 5){
+      light = data;
+      //Serial.println(String(light)+";"+String(count));
+      count += 1;
+    }
+    else if (count == 6){
+      rain = data;
+      //Serial.println(String(rain)+";"+String(count));
+      count += 1;
+    }  
+  }
+  
+  //Serial.println("mi"+String(mi));
+  Serial.println("temp :"+String(tempe*(((mi-1)*2)-1)));
+  //Serial.println("mifeel"+String(mifeel));
+  Serial.println("feel :"+String(feeling*(((mifeel-1)*2)-1)));
+  Serial.println("hum :"+String(humi));
+  Serial.println("pres :"+String(presu));
+  Serial.println("lux :"+String(light));
+  Serial.println("rain :"+String(rain));
+  
+  //Serial.println(String(rain)+String(counter));
+  
+  //Serial.println(String(rain==counter));
+  
+}

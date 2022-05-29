@@ -1,3 +1,10 @@
+/////////////////////////////////////////////////////////////////
+// debugging modes                                             //
+/////////////////////////////////////////////////////////////////
+bool debug = true;
+bool debugscreen = false;
+#define SerialDebugging true
+
 //initialise libraries
 
 #include <Adafruit_GFX.h>    // Core graphics library
@@ -9,9 +16,9 @@
 
 // For the breakout, you can use any 2 or 3 pins
 // These pins will also work for the 1.8" TFT shield
-#define TFT_CS     10
-#define TFT_RST    9 // you can also connect this to the Arduino reset // in which case, set this #define pin to 0!
-#define TFT_DC     8
+#define TFT_CS     7
+#define TFT_RST    6 // you can also connect this to the Arduino reset // in which case, set this #define pin to 0!
+#define TFT_DC     5
 
 
 Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS,  TFT_DC, TFT_RST);
@@ -39,22 +46,24 @@ uint16_t        display_background_color    = display_color_blue;
 //values of reference for icons overcast
 uint8_t suny = 25,sunx = 25,sun = 16;
 
-//time calculation variables
-int sunrise_set_times[4];
+
 
 
 /////////////////////////////////////////////////////////////////
 // initialise RTC variables                                    //
 /////////////////////////////////////////////////////////////////
-const uint8_t button_pin1 = 2,button_pin2 = 3, button_pin3 = 4; // assign pin numbers hasn't been done yet
+const uint8_t button_pin1 = 2,button_pin2 = 3, button_pin3 = 4;
 volatile bool is_button_pressed = false;
 bool is_display_visible = false;
+
 unsigned long shutdown_time = 5000, runtime;  // shut_down_time is defined in millisec because of the millis() function which imports the time the arduino has been running in millisec
 unsigned long millis_start_lcd, vorige_millis = 0; // millis_start is saved in the settings tab, this needs to be imported from the second a date and time have been given --OBE NIET VERGETEN
 
 int year = 2022, month = 12, day = 31, hours = 23, minutes = 59, sec = 30;
-
 int last_month, last_day, last_hour, last_minute;
+
+//time calculation variables
+int sunrise_set_times[4];
 
 /////////////////////////////////////////////////////////////////
 // initialise Lora and weather variables                       //
@@ -86,13 +95,16 @@ float last_temp =0,last_heatindex=0,last_hum=0,last_pres;
 
 int data;   // is used for a buffer to get data out of the string
 
+
 /////////////////////////////////////////////////////////////////
-// debugging modes                                             //
+// error handling                                              //
 /////////////////////////////////////////////////////////////////
-bool debug = true;
-bool debugscreen = false;
-bool debugtime = true;
-#define SerialDebugging true
+
+bool connection_error = false;
+bool bme280_error = false;
+bool LoRa_error = false;
+
+
 
 /////////////////////////////////////////////////////////////////
 //setup                                                        //
@@ -118,12 +130,10 @@ void setup() {
   Serial.println("Initialized screen");
   
   
-  if (!debug){
-    Serial.println("LoRa test");
-    if (!LoRa.begin(433E6)) {
-      Serial.println("Starting LoRa failed!");
-      while (1);
-    }
+  Serial.println("LoRa test");
+  if (!LoRa.begin(433E6)) {
+    //Serial.println("Starting LoRa failed!");
+    LoRa_error = true;
   }
   
   if (!debugscreen){
@@ -150,9 +160,7 @@ void loop() {
       print_BME280_data(pres,temp,hum);
       modify_date();
     }
-    if (debugtime){
-      Serial.println(String(year)+"-"+String(month)+"-"+String(day)+" "+String(hours)+":"+String(minutes));
-    } 
+    error_handling();
   }
   time_and_day_upcounter();
   
@@ -199,6 +207,7 @@ void time_and_day_upcounter (){
     
   }
   vorige_millis = millis();
+  Serial.println(String(year)+"-"+String(month)+"-"+String(day)+" "+String(hours)+":"+String(minutes));
 }
 
 /////////////////////////////////////////////////////////////////
@@ -227,33 +236,46 @@ int request(){
 // module                                                      //
 /////////////////////////////////////////////////////////////////
 void listen(){
-  
+  int listen_stop = 0, try_stop = 0;
   dataset_string = "";
   
   // try to parse a packet
-  while (hold && !debug){
-    Serial.println("listening...");
-    int packetSize = LoRa.parsePacket(); 
-    if (packetSize) {
-      // received a packet
-      //Serial.print("Received packet '");
-  
-      // read packet
-      while (LoRa.available()) {
-        dataset_string += (char)LoRa.read();
+  while (try_stop < 5){
+    while (hold && listen_stop < 30){
+      //Serial.println("listening...");
+      int packetSize =0; //LoRa.parsePacket(); 
+      if (packetSize) {
+        // received a packet
+        //Serial.print("Received packet '");
+    
+        // read packet
+        while (LoRa.available()) {
+          dataset_string += (char)LoRa.read();
+        }
+        connection_error = false;
+        //Serial.println(dataset_string);
+        //Serial.println(dataset_string.length());
+        // print RSSI of packet
+        //Serial.print("' with RSSI ");
+        //Serial.println(LoRa.packetRssi());
+        
+        hold = 0;
       }
-      
-      //Serial.println(dataset_string);
-      //Serial.println(dataset_string.length());
-      // print RSSI of packet
-      //Serial.print("' with RSSI ");
-      //Serial.println(LoRa.packetRssi());
-      
-      hold = 0;
+      listen_stop++;
     }
+    if (listen_stop == 30){
+      Serial.println("retrieved nothing");
+      request();
+    }
+    listen_stop = 0;
+    try_stop++;
+  }
+  if (try_stop == 5){
+    connection_error = true;
   }
   if (debug){
-    dataset_string = "1,24,2,16,55,1016,3000,2";
+    hold = 0;
+    dataset_string = "3,24,2,16,55,1016,3000,2";
   }
 }
 
@@ -314,13 +336,25 @@ void get_data_out(){
   }
   
   //Serial.println("mi"+String(mi));
-  temp = (temp*(((mi-1)*2)-1));
-  Serial.println("temp :"+String(temp));
-  //Serial.println("mifeel"+String(mifeel));
-  heatindex = (heatindex*(((mifeel-1)*2)-1));
-  Serial.println("feel :"+String(heatindex));
-  Serial.println("hum :"+String(hum));
-  Serial.println("pres :"+String(pres));
+  if (mi == 3){
+    bme280_error = true;
+    temp = last_temp;
+    heatindex = last_heatindex;
+    hum = last_hum;
+    pres = last_pres;
+  }
+  else{
+    bme280_error = false;
+    temp = (temp*(((mi-1)*2)-1));
+    Serial.println("temp :"+String(temp));
+    //Serial.println("mifeel"+String(mifeel));
+    heatindex = (heatindex*(((mifeel-1)*2)-1));
+    Serial.println("feel :"+String(heatindex));
+    Serial.println("hum :"+String(hum));
+    Serial.println("pres :"+String(pres));
+  }
+  
+  
   Serial.println("lux :"+String(lux));
   Serial.println("rain :"+String(rain));
   
@@ -643,4 +677,23 @@ void print_date(int month,int day,int hour, int minute,uint16_t color){
   
   tft.setCursor(x_placement, y_placement + y_offset);
   tft.print(month+String("/")+day); 
+}
+
+/////////////////////////////////////////////////////////////////
+// error handling                                              //
+/////////////////////////////////////////////////////////////////
+void error_handling(){
+  Serial.println(" ");
+  if (LoRa_error){
+    Serial.println("LoRa module not found");
+  }
+  else if (connection_error){
+    Serial.println("connection error");
+  }
+  else{
+    if(bme280_error){
+    Serial.println("temp, hum and pres sensor not found");
+  }
+  }
+
 }

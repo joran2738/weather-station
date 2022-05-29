@@ -3,19 +3,17 @@
 #include <Adafruit_GFX.h>    // Core graphics library
 #include <Adafruit_ST7735.h> // Hardware-specific library
 #include <SPI.h>
-#include <EnvironmentCalculations.h>
-#include <BME280I2C.h>
-#include <Wire.h>
+#include <LoRa.h>
 
 //initialise names/ports
 
 // For the breakout, you can use any 2 or 3 pins
 // These pins will also work for the 1.8" TFT shield
 #define TFT_CS     10
-#define TFT_RST    9  // you can also connect this to the Arduino reset // in which case, set this #define pin to 0!
+#define TFT_RST    9 // you can also connect this to the Arduino reset // in which case, set this #define pin to 0!
 #define TFT_DC     8
 
-#define SerialDebugging true
+
 Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS,  TFT_DC, TFT_RST);
 
 // color definitions
@@ -38,44 +36,63 @@ const uint16_t  display_color_dark_grey    = 0x7d4b4b;
 uint16_t        display_text_color         = display_color_white;
 uint16_t        display_background_color    = display_color_blue;
 
-
-//LDR init
-int LDRPin = A2;    // select the input pin for the potentiometer
-int LDRval = 0;  // variable to store the value coming from the sensor
-char overcast[10];
-
-// rainsensor init
-int rain_pin = A0;
-int rain_val = 0;
-
 //values of reference for icons overcast
-int suny = 25,sunx = 25,sun = 16;
+uint8_t suny = 25,sunx = 25,sun = 16;
 
 //time calculation variables
 int sunrise_set_times[4];
 
-//Bme sensor settings
-BME280I2C::Settings settings(
-   BME280::OSR_X1,
-   BME280::OSR_X1,
-   BME280::OSR_X1,
-   BME280::Mode_Forced,
-   BME280::StandbyTime_1000ms,
-   BME280::Filter_16,
-   BME280::SpiEnable_False,
-   BME280I2C::I2CAddr_0x76
-);
 
-BME280I2C bme(settings);
-float temp(NAN), hum(NAN), pres(NAN);
+/////////////////////////////////////////////////////////////////
+// initialise RTC variables                                    //
+/////////////////////////////////////////////////////////////////
+const uint8_t button_pin1 = 2,button_pin2 = 3, button_pin3 = 4; // assign pin numbers hasn't been done yet
+volatile bool is_button_pressed = false;
+bool is_display_visible = false;
+unsigned long shutdown_time = 5000, runtime;  // shut_down_time is defined in millisec because of the millis() function which imports the time the arduino has been running in millisec
+unsigned long millis_start_lcd, vorige_millis = 0; // millis_start is saved in the settings tab, this needs to be imported from the second a date and time have been given --OBE NIET VERGETEN
+
+int year = 2022, month = 12, day = 31, hours = 23, minutes = 59, sec = 30;
+
+int last_month, last_day, last_hour, last_minute;
+
+/////////////////////////////////////////////////////////////////
+// initialise Lora and weather variables                       //
+/////////////////////////////////////////////////////////////////
+int counter = 0;
+int hold = 0;
+
+String dataset_string = ""; // this is the string that the LORA module receives
+
+// mi and mifeel resemble whether the temperature is negative or not,
+//this is needed because the function to get data out of the string doesn't read negative numbers
+
+//temperature
+int mi;  
+int temp = 0;
+
+//feel temperature
+int mifeel;
+int heatindex = 0;
+
+//other data
+int hum = 0;
+int pres = 0;
+int lux = 0;
+char overcast[10];
+int rain = 0;
+
 float last_temp =0,last_heatindex=0,last_hum=0,last_pres;
-BME280::TempUnit tempUnit(BME280::TempUnit_Celsius);
-BME280::PresUnit presUnit(BME280::PresUnit_hPa);
-EnvironmentCalculations::TempUnit     envTempUnit =  EnvironmentCalculations::TempUnit_Celsius;
 
-//date and time
-int last_month, last_day,last_hour,last_minute;
+int data;   // is used for a buffer to get data out of the string
 
+/////////////////////////////////////////////////////////////////
+// debugging modes                                             //
+/////////////////////////////////////////////////////////////////
+bool debug = true;
+bool debugscreen = false;
+bool debugtime = true;
+#define SerialDebugging true
 
 /////////////////////////////////////////////////////////////////
 //setup                                                        //
@@ -83,7 +100,7 @@ int last_month, last_day,last_hour,last_minute;
 
 void setup() {
   #if (SerialDebugging)
-    Serial.begin(115200); while (!Serial); Serial.println();
+    Serial.begin(9600); while (!Serial); Serial.println();
   #endif
   Serial.print("Hello! ST7735 TFT Test");
 
@@ -92,36 +109,27 @@ void setup() {
   // Use this initializer if you're using a 1.8" TFT
   tft.initR(INITR_BLACKTAB);   // initialize a ST7735S chip, black tab
 
-// initialise the display
-    tft.setFont();
-    tft.fillScreen(display_background_color);
-    tft.setTextColor(display_text_color);
-    tft.setTextSize(2);
+  // initialise the display
+  tft.setFont();
+  tft.fillScreen(display_background_color);
+  tft.setTextColor(display_text_color);
+  tft.setTextSize(2);
 
-  Serial.println("Initialized");
-
-  lines();
+  Serial.println("Initialized screen");
   
-  Wire.begin();
-
-  while(!bme.begin())
-  {
-    Serial.println("Could not find BME280 sensor!");
-    delay(1000);
-  }
-
-  switch(bme.chipModel())
-  {
-     case BME280::ChipModel_BME280:
-       Serial.println("Found BME280 sensor! Success.");
-       break;
-     case BME280::ChipModel_BMP280:
-       Serial.println("Found BMP280 sensor! No Humidity available.");
-       break;
-     default:
-       Serial.println("Found UNKNOWN sensor! Error!");
+  
+  if (!debug){
+    Serial.println("LoRa test");
+    if (!LoRa.begin(433E6)) {
+      Serial.println("Starting LoRa failed!");
+      while (1);
+    }
   }
   
+  if (!debugscreen){
+    lines();
+  }
+
 } 
 
 /////////////////////////////////////////////////////////////////
@@ -131,17 +139,194 @@ void setup() {
 void loop() {
   // unconditional display, regardless of whether display is visible
   // read the value from the sensor:
-  
   char part_of_day[6];
-  LDRval = analogRead(LDRPin);
- 
-  day_or_night_calc(2022,4,30,10,10,part_of_day,LDRval);
-  rain_val = analogRead(rain_pin);
-  rain_calc(rain_val);
-  bme.read(pres, temp, hum, tempUnit, presUnit);
-  print_BME280_data(pres,temp,hum);
-  modify_date(5,1,10,10);
-  delay(1000);
+  hold = request();
+  if (hold != 0){
+    listen();
+    get_data_out();
+    day_or_night_calc(part_of_day);
+    rain_calc();
+    if (!debugscreen){
+      print_BME280_data(pres,temp,hum);
+      modify_date();
+    }
+    if (debugtime){
+      Serial.println(String(year)+"-"+String(month)+"-"+String(day)+" "+String(hours)+":"+String(minutes));
+    } 
+  }
+  time_and_day_upcounter();
+  
+  delay(2000);
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////
+// function which keeps track of real time based upon a set time imported from settings //
+//////////////////////////////////////////////////////////////////////////////////////////
+void time_and_day_upcounter (){
+  int days_in_month[] = {31,28,31,30,31,30,31,31,30,31,30,31};
+  int leap[] = {31,29,31,30,31,30,31,31,30,31,30,31};
+  if (sec >= 59) {
+    sec = 0;
+    minutes++;
+    if (minutes >= 60) {
+      minutes = 0;
+      hours++;
+      if (hours >= 24) {
+        hours = 0;
+        day++;
+        if ((year % 4 == 0 && year % 100 != 0) || year % 400 == 0) {
+          if (leap[month - 1] < day) {
+            day = 1;
+            month++;
+          }
+        }
+        else {
+          if (days_in_month[month - 1] < day) {
+            day = 1;
+            month++;
+        }
+      }
+    }
+    if (month >= 13 ) {
+      month = 1;
+      year++;
+    }
+    }
+  }
+  else if((millis()-vorige_millis)>=1000) {
+    //Serial.println((millis()-vorige_millis));
+    sec +=((millis()-vorige_millis)/1000);
+    
+  }
+  vorige_millis = millis();
+}
+
+/////////////////////////////////////////////////////////////////
+// this function requests data from the outside module         //
+// it returns 1 so that the loop will only listen for data till//
+// it has recieved it                                          //
+/////////////////////////////////////////////////////////////////
+int request(){
+  Serial.print("Sending packet: ");
+  Serial.println(counter);
+
+  // send packet
+  if (!debug){
+    LoRa.beginPacket();
+    LoRa.print("hello ");
+    LoRa.print(counter);
+    LoRa.endPacket();
+  }
+  
+  counter++;
+  return 1;
+}
+
+/////////////////////////////////////////////////////////////////
+// this function waits for the data returned from the outside  //
+// module                                                      //
+/////////////////////////////////////////////////////////////////
+void listen(){
+  
+  dataset_string = "";
+  
+  // try to parse a packet
+  while (hold && !debug){
+    Serial.println("listening...");
+    int packetSize = LoRa.parsePacket(); 
+    if (packetSize) {
+      // received a packet
+      //Serial.print("Received packet '");
+  
+      // read packet
+      while (LoRa.available()) {
+        dataset_string += (char)LoRa.read();
+      }
+      
+      //Serial.println(dataset_string);
+      //Serial.println(dataset_string.length());
+      // print RSSI of packet
+      //Serial.print("' with RSSI ");
+      //Serial.println(LoRa.packetRssi());
+      
+      hold = 0;
+    }
+  }
+  if (debug){
+    dataset_string = "1,24,2,16,55,1016,3000,2";
+  }
+}
+
+/////////////////////////////////////////////////////////////////
+// this functions gets the data out of the string returned from//
+// the outside module                                          //
+/////////////////////////////////////////////////////////////////
+void get_data_out(){
+  uint8_t count = 0;
+  char data_array[40];
+  dataset_string.toCharArray(data_array,40);
+
+  data = atof(strtok(data_array,","));
+  mi = data;
+  //Serial.print(String(mi)+String(count));
+  
+  while(data != NULL){
+        
+    data = atof(strtok(NULL, ","));
+    //Serial.println("data"+String(data)); 
+    
+    if (count == 0){
+      temp = data;
+      //Serial.println(String(temp)+";"+String(count));
+      count += 1;
+    }
+    
+    else if (count == 1){
+      mifeel = data;
+      //Serial.println(String(mifeel)+";"+String(count));
+      count += 1;
+    }
+    else if (count == 2){
+      heatindex = data;
+      //Serial.println(String(heatindex)+";"+String(count));
+      count += 1;
+    }
+    else if (count == 3){
+      hum = data;
+      //Serial.println(String(hum)+";"+String(count));
+      count += 1;
+    }
+    else if (count == 4){
+      pres = data;
+      //Serial.println(String(pres)+";"+String(count));
+      count += 1;
+    }
+    else if (count == 5){
+      lux = data;
+      //Serial.println(String(lux)+";"+String(count));
+      count += 1;
+    }
+    else if (count == 6){
+      rain = data;
+      //Serial.println(String(rain)+";"+String(count));
+      count += 1;
+    }  
+  }
+  
+  //Serial.println("mi"+String(mi));
+  temp = (temp*(((mi-1)*2)-1));
+  Serial.println("temp :"+String(temp));
+  //Serial.println("mifeel"+String(mifeel));
+  heatindex = (heatindex*(((mifeel-1)*2)-1));
+  Serial.println("feel :"+String(heatindex));
+  Serial.println("hum :"+String(hum));
+  Serial.println("pres :"+String(pres));
+  Serial.println("lux :"+String(lux));
+  Serial.println("rain :"+String(rain));
+  
+  //Serial.println(String(rain)+String(counter));
+  
+  //Serial.println(String(rain==counter));
 }
 
 /////////////////////////////////////////////////////////////////
@@ -158,9 +343,17 @@ void lines(){
 //this function calculates whether there's rain or not         //
 /////////////////////////////////////////////////////////////////
 
-void rain_calc(int rain){
-  if (rain < 900){
-    rain_icon();
+void rain_calc(){
+  if (rain == 2){
+    if (!debugscreen){
+      rain_icon();
+    }
+    else{
+      Serial.println("it's raining");
+    }
+  }
+  else if (rain == 1){
+    
   }
 }
 
@@ -169,9 +362,9 @@ void rain_calc(int rain){
 /////////////////////////////////////////////////////////////////
 
 void rain_icon(){
-  int offset_x = 19;
-  int offset_drop = 8;
-  int offset_y = 0;
+  uint8_t offset_x = 19;
+  uint8_t offset_drop = 8;
+  uint8_t offset_y = 0;
   for (int i = 0; i <= 5; i++) {
     offset_y = random(0, 9);
     tft.drawLine(sunx - offset_x - 1 + (i*offset_drop) , suny + 18 + offset_y, sunx - offset_x - 1 + (i*offset_drop) ,suny + 21 + offset_y, display_color_cyan);
@@ -181,13 +374,23 @@ void rain_icon(){
 }
 
 void overcast_night(){
-  overcast_clear();
-  tft.fillCircle(sunx, suny, sun, display_color_grey);
-  tft.fillCircle(sunx+5, suny, sun-3, display_background_color);
+  if (!debugscreen){
+    overcast_clear();
+    tft.fillCircle(sunx, suny, sun, display_color_grey);
+    tft.fillCircle(sunx+5, suny, sun-3, display_background_color);
+  }
+  else{
+    Serial.println("it's night");
+  }
 }
 void overcast_day(){
-  overcast_clear();
-  tft.fillCircle(sunx, suny, sun, display_color_sun);
+  if (!debugscreen){
+    overcast_clear();
+    tft.fillCircle(sunx, suny, sun, display_color_sun);
+  }
+  else{
+    Serial.println("it's day");
+  }
 }
 void overcast_dark_and_office(uint16_t color){
   overcast_clear();
@@ -238,44 +441,65 @@ void overcast_clear(){
 //this function determines what type of overcast it is,        //
 //based on the Lightintensity                                  //
 /////////////////////////////////////////////////////////////////
-void calc_overcast_light(int LDR,int day_or_night){
-  float voltage;
-  float res;
-  float lux;
+void calc_overcast_light(int day_or_night){
 
-  //translate analog signal to voltage, to resistance of the LDR, to lightintensity
-  voltage = ((float)LDR / 1023) * 5;
-  res = (voltage /((5 - voltage)/ 4.610));
-  lux = 500 / res;
-  Serial.print(lux);
-  Serial.println(day_or_night);
 
   // change lux value to overcast type
   if (lux<4 && day_or_night == 1){
     strcpy(overcast,"dark");
-    overcast_dark_and_office(display_color_dark_grey);
+    if (!debugscreen){
+      overcast_dark_and_office(display_color_dark_grey);
+    }
+    else{
+      Serial.println("overcast: "+String(overcast));
+    }
   }
   else if (lux<10  && day_or_night == 1){
     strcpy(overcast,"office");
-    overcast_dark_and_office(display_color_white);
+    if (!debugscreen){
+      overcast_dark_and_office(display_color_white);
+    }
+    else{
+      Serial.println("overcast: "+String(overcast));
+    }
   }
   else if (lux<20  && day_or_night == 1){
     strcpy(overcast,"cloudy");
-    overcast_cloudy();
+    if (!debugscreen){
+      overcast_cloudy();
+    }
+    else{
+      Serial.println("overcast: "+String(overcast));
+    }
   }
   else if (lux<50  && day_or_night == 1){
   }
   else if (lux<200  && day_or_night == 0){
     strcpy(overcast,"dark");
-    overcast_dark_and_office(display_color_dark_grey);
+    if (!debugscreen){
+      overcast_dark_and_office(display_color_dark_grey);
+    }
+    else{
+      Serial.println("overcast: "+String(overcast));
+    }
   }
   else if (lux<1250 && day_or_night == 0){
     strcpy(overcast,"office"); 
-    overcast_dark_and_office(display_color_white);
+    if (!debugscreen){
+      overcast_dark_and_office(display_color_white);
+    }
+    else{
+      Serial.println("overcast: "+String(overcast));
+    }
   }
   else if (lux<2500 && day_or_night == 0){
     strcpy(overcast,"cloudy");
-    overcast_cloudy();
+    if (!debugscreen){
+      overcast_cloudy();
+    }
+    else{
+      Serial.println("overcast: "+String(overcast));
+    }
   }
   else{
   }
@@ -287,11 +511,11 @@ void calc_overcast_light(int LDR,int day_or_night){
 //sunrise and sunset are going to take place at a certain date //
 //the values are based of off Herent, Vlaams Brabant, Belgium  //
 /////////////////////////////////////////////////////////////////
-void calculate_sunrise_set(int year,int month, int day){
+void calculate_sunrise_set(){
 
-  int isleap;
-  int days[]={31,59,90,120,151,181,212,243,273,304,334,365};
-  int dayinyear;
+  uint8_t isleap;
+  uint16_t days[]={31,59,90,120,151,181,212,243,273,304,334,365};
+  uint16_t dayinyear;
   int sunset,sunrise;
 
   
@@ -330,19 +554,19 @@ void calculate_sunrise_set(int year,int month, int day){
 /////////////////////////////////////////////////////////////////
 //calculate whether it's day or night                          //
 /////////////////////////////////////////////////////////////////
-void day_or_night_calc(int year, int month, int day, int hour, int minute,char part_of_day[6],int LDRval){
+void day_or_night_calc(char part_of_day[6]){
 
-  calculate_sunrise_set(year,month,day);
+  calculate_sunrise_set();
   
-  if ((hour < sunrise_set_times[0] ) || (hour == sunrise_set_times[0] && minute < sunrise_set_times[1])||(hour > sunrise_set_times[2] ) || (hour == sunrise_set_times[2] && minute > sunrise_set_times[3])){
+  if ((hours < sunrise_set_times[0] ) || (hours == sunrise_set_times[0] && minutes < sunrise_set_times[1])||(hours > sunrise_set_times[2] ) || (hours == sunrise_set_times[2] && minutes > sunrise_set_times[3])){
    strcpy(part_of_day,"night");
    overcast_night();
-   calc_overcast_light(LDRval,1);
+   calc_overcast_light(1);
   }
   else{
     strcpy(part_of_day,"day");
     overcast_day();
-    calc_overcast_light(LDRval,0);
+    calc_overcast_light(0);
   }
 }
 
@@ -351,7 +575,6 @@ void day_or_night_calc(int year, int month, int day, int hour, int minute,char p
 /////////////////////////////////////////////////////////////////
 void print_BME280_data(int pres, int temp, int hum){
   int x_placement = 3, y_placement = 60, y_offset = 25;
-  int heatindex = EnvironmentCalculations::HeatIndex(temp, hum, envTempUnit);
 
   print_data(last_pres, last_temp, last_hum, last_heatindex,display_background_color);
   
@@ -378,8 +601,8 @@ void print_data(int pres, int temp, int hum, int heatindex,uint16_t color){
   tft.setCursor(x_placement, y_placement+y_offset);
   tft.setTextSize(1);
   tft.print("feels like ");
-  tft.setTextSize(2);
   tft.print(+heatindex+String("C"));
+  tft.setTextSize(2);
   tft.setCursor(x_placement, y_placement+y_offset*2);
   tft.print(hum+String("% RH"));
   tft.setCursor(x_placement, y_placement+y_offset*3);
@@ -388,15 +611,15 @@ void print_data(int pres, int temp, int hum, int heatindex,uint16_t color){
 /////////////////////////////////////////////////////////////////
 //this function gets the time and date on the screen           //
 /////////////////////////////////////////////////////////////////
-void modify_date(int month,int day,int hour, int minute){
+void modify_date(){
 
   print_date(last_month, last_day, last_hour, last_minute, display_background_color);
-  print_date(month, day, hour, minute, display_text_color);
+  print_date(month, day, hours, minutes, display_text_color);
   
   last_month = month;
   last_day = day;
-  last_hour = hour;
-  last_minute = minute;
+  last_hour = hours;
+  last_minute = minutes;
 }
 
 /////////////////////////////////////////////////////////////////
@@ -409,7 +632,15 @@ void print_date(int month,int day,int hour, int minute,uint16_t color){
   tft.setTextColor(color);
   
   tft.setCursor(x_placement, y_placement);
-  tft.print(hour+String(":")+minute);
+  if (hour < 10){
+    tft.print("0");
+  }
+  tft.print(hour+String(":"));
+  if (minute < 10){
+    tft.print("0");
+  }
+  tft.print(minute);
+  
   tft.setCursor(x_placement, y_placement + y_offset);
   tft.print(month+String("/")+day); 
 }

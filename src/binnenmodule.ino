@@ -95,7 +95,18 @@ float last_temp =0,last_heatindex=0,last_hum=0,last_pres;
 
 int data;   // is used for a buffer to get data out of the string
 
-
+/////////////////////////////////////////////////////////////////
+// initialise settings variables                               //
+/////////////////////////////////////////////////////////////////
+const int menu = 3;
+const int up = 4;
+const int down = 2;
+byte pressed = 0;
+byte back = 0;
+bool temp_setting = false;
+bool pres_setting = false;
+int scroll = 0;
+bool inst = false; 
 /////////////////////////////////////////////////////////////////
 // error handling                                              //
 /////////////////////////////////////////////////////////////////
@@ -122,10 +133,7 @@ void setup() {
   tft.initR(INITR_BLACKTAB);   // initialize a ST7735S chip, black tab
 
   // initialise the display
-  tft.setFont();
-  tft.fillScreen(display_background_color);
-  tft.setTextColor(display_text_color);
-  tft.setTextSize(2);
+  main_background();
 
   Serial.println("Initialized screen");
   
@@ -135,11 +143,10 @@ void setup() {
     //Serial.println("Starting LoRa failed!");
     LoRa_error = true;
   }
-  
-  if (!debugscreen){
-    lines();
-  }
 
+  pinMode(menu, INPUT_PULLUP);
+  pinMode(up, INPUT_PULLUP);
+  pinMode(down, INPUT_PULLUP);
 } 
 
 /////////////////////////////////////////////////////////////////
@@ -151,6 +158,7 @@ void loop() {
   // read the value from the sensor:
   char part_of_day[6];
   hold = request();
+  settings();
   if (hold != 0){
     listen();
     get_data_out();
@@ -366,7 +374,6 @@ void get_data_out(){
 /////////////////////////////////////////////////////////////////
 // this funtion prints lines around the weather icons          //
 /////////////////////////////////////////////////////////////////
-
 void lines(){
   tft.drawLine(55, 0, 55,55, display_color_white);
   tft.drawLine(55, 55, 0,55, display_color_white);
@@ -376,7 +383,6 @@ void lines(){
 /////////////////////////////////////////////////////////////////
 //this function calculates whether there's rain or not         //
 /////////////////////////////////////////////////////////////////
-
 void rain_calc(){
   if (rain == 2){
     if (!debugscreen){
@@ -696,4 +702,136 @@ void error_handling(){
   }
   }
 
+}
+
+/////////////////////////////////////////////////////////////////
+// this function sets up the main screen                       //
+/////////////////////////////////////////////////////////////////
+void main_background(){
+  tft.setFont();
+  tft.fillScreen(display_background_color);
+  tft.setTextColor(display_text_color);
+  tft.setTextSize(2);
+  if (!debugscreen){
+    lines();
+  }
+}
+
+void settings_background(){
+  int beginning = 25;
+  int offset=25;
+
+  tft.setFont();
+  tft.fillScreen(display_color_grey);
+  tft.setTextColor(display_color_black);
+  tft.setTextSize(2);
+  
+  for (int i = 0;i<3;i++){
+    tft.drawLine(0, beginning + i*offset, 127,beginning + i*offset, display_color_black);
+    tft.setCursor(5,5 + i* offset);
+    switch(i){
+      case 0: tft.print("temp:");break;
+      case 1: tft.print("pres:");break;
+      case 2: tft.print("return:");break;
+    }
+  }
+}
+void select(int y){
+  for (int x = 0;x < 3; x++){
+    tft.fillRect(77,(x*25)+1,127,24,display_color_grey);
+  }
+  tft.fillRect(122,(y*25)+1,127,24,display_color_sun);
+}
+void choice(){
+  int offset=25;
+  for (int i = 0;i<2;i++){
+    tft.setCursor(78,5 + i* offset);
+    switch(i){
+      case 0: 
+      if(temp_setting){
+        tft.print("F");
+      }
+      else{
+        tft.print("C");
+      }
+      break;
+      case 1: 
+      if (pres_setting){
+        tft.print("bar");
+        
+      }
+      else{
+        tft.print("hPa");
+      }
+      break;
+    }
+  } 
+}
+
+void settings(){
+  scroll = 0;
+  pressed = digitalRead(menu);
+  inst = menu;
+  if (pressed == LOW)
+  { //start instellingen
+    settings_background();
+    Serial.println("entered settings");
+    back = 0;
+    while(back == 0)
+    {
+      if(digitalRead(up) == 0){//zet de select zone 1 omhoog
+        if(scroll > 0){
+          scroll = scroll - 1;
+          Serial.println(scroll);
+          select(scroll);
+          choice();
+          delay(500);//om de knoppen te debouncen
+        }
+      }
+      if(digitalRead(down) == 0){//zet de select zone 1 down
+          if(scroll < 2){
+            scroll = scroll + 1;
+            Serial.println(scroll);
+            select(scroll);
+            choice();
+            delay(500);//om de knoppen te debouncen
+          }
+      }
+      
+      
+      switch(scroll){
+
+        case 0: //temperatuur °C - °F
+        if(digitalRead(menu) == 0)
+        {//selecteer de optie
+          temp_setting = !(temp_setting); 
+          Serial.println("temp"+String(temp_setting));
+          select(scroll);
+          choice();
+          delay(500);
+        }
+        break;
+        case 1: //druk bar - P
+        if(digitalRead(menu) == 0)
+        {//selecteer de optie
+          pres_setting = !(pres_setting); 
+          Serial.println("druk"+String(pres_setting));
+          select(scroll);
+          choice();
+          delay(500);
+        }
+        break;
+
+        case 2: //terug
+        if(digitalRead(menu) == 0){//selecteer de optie
+          back = 1; 
+          Serial.println("going back");
+          main_background();
+          delay(500);
+        }
+        break;
+      }
+      
+    }
+  }
 }

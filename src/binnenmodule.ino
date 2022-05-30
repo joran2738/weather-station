@@ -86,12 +86,12 @@ int heatindex = 0;
 
 //other data
 int hum = 0;
-int pres = 0;
+float pres = 0;
 int lux = 0;
 char overcast[10];
 int rain = 0;
 
-float last_temp =0,last_heatindex=0,last_hum=0,last_pres;
+float last_temp =20,last_heatindex=20,last_hum=50,last_pres = 1016;
 
 int data;   // is used for a buffer to get data out of the string
 
@@ -273,6 +273,7 @@ void listen(){
     }
     if (listen_stop == 30){
       Serial.println("retrieved nothing");
+      settings();
       request();
     }
     listen_stop = 0;
@@ -346,10 +347,6 @@ void get_data_out(){
   //Serial.println("mi"+String(mi));
   if (mi == 3){
     bme280_error = true;
-    temp = last_temp;
-    heatindex = last_heatindex;
-    hum = last_hum;
-    pres = last_pres;
   }
   else{
     bme280_error = false;
@@ -360,6 +357,13 @@ void get_data_out(){
     Serial.println("feel :"+String(heatindex));
     Serial.println("hum :"+String(hum));
     Serial.println("pres :"+String(pres));
+  }
+  if (temp_setting){
+    temp = (temp * 1.8) + 32;
+    heatindex = (heatindex * 1.8) + 32;
+  }
+  if (pres_setting){
+    pres = pres /1000;
   }
   
   
@@ -613,12 +617,12 @@ void day_or_night_calc(char part_of_day[6]){
 /////////////////////////////////////////////////////////////////
 //this function gets the BME280 data on the screen             //
 /////////////////////////////////////////////////////////////////
-void print_BME280_data(int pres, int temp, int hum){
+void print_BME280_data(float pres, int temp, int hum){
   int x_placement = 3, y_placement = 60, y_offset = 25;
 
   print_data(last_pres, last_temp, last_hum, last_heatindex,display_background_color);
   
-  print_data(pres, temp, hum, heatindex, display_text_color);
+  print_data(pres, temp , hum, heatindex, display_text_color);
 
   last_temp = temp;
   last_heatindex = heatindex;
@@ -631,22 +635,42 @@ void print_BME280_data(int pres, int temp, int hum){
 //this function clears the old and puts the new BME280 data    //
 //on the screen                                                //
 /////////////////////////////////////////////////////////////////
-void print_data(int pres, int temp, int hum, int heatindex,uint16_t color){
+void print_data(float pres, int temp, int hum, int heatindex,uint16_t color){
   
   int x_placement = 3, y_placement = 60, y_offset = 25;
   tft.setTextColor(color);
   
   tft.setCursor(x_placement, y_placement);
-  tft.print(temp+String("C"));
+  tft.print(temp);
+  if(temp_setting){
+        tft.print("F");
+      }
+      else{
+        tft.print("C");
+      }
   tft.setCursor(x_placement, y_placement+y_offset);
   tft.setTextSize(1);
   tft.print("feels like ");
-  tft.print(+heatindex+String("C"));
+  tft.print(heatindex);
+  if(temp_setting){
+    tft.print("F");
+  }
+  else{
+    tft.print("C");
+  }
   tft.setTextSize(2);
   tft.setCursor(x_placement, y_placement+y_offset*2);
   tft.print(hum+String("% RH"));
   tft.setCursor(x_placement, y_placement+y_offset*3);
-  tft.print(pres+String("hPa"));
+  
+  if (pres_setting){
+    tft.print(pres);
+    tft.print("bar");      
+  }
+  else{
+    tft.print((int)pres);
+    tft.print("hPa");
+  }
 }
 /////////////////////////////////////////////////////////////////
 //this function gets the time and date on the screen           //
@@ -776,6 +800,7 @@ void settings(){
   { //start instellingen
     settings_background();
     Serial.println("entered settings");
+    delay(150);
     back = 0;
     while(back == 0)
     {

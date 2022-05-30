@@ -59,7 +59,7 @@ bool is_display_visible = false;
 unsigned long shutdown_time = 5000, runtime;  // shut_down_time is defined in millisec because of the millis() function which imports the time the arduino has been running in millisec
 unsigned long millis_start_lcd, vorige_millis = 0; // millis_start is saved in the settings tab, this needs to be imported from the second a date and time have been given --OBE NIET VERGETEN
 
-int year = 2022, month = 12, day = 31, hours = 23, minutes = 59, sec = 30;
+int year = 2022, month = 5, day = 30, hours = 18, minutes = 35, sec = 0;
 int last_month, last_day, last_hour, last_minute;
 
 //time calculation variables
@@ -621,9 +621,13 @@ void print_BME280_data(float pres, int temp, int hum){
   int x_placement = 3, y_placement = 60, y_offset = 25;
 
   print_data(last_pres, last_temp, last_hum, last_heatindex,display_background_color);
+  if (connection_error || bme280_error || LoRa_error){
+    display_text_color = display_color_red ;
+  }
   
   print_data(pres, temp , hum, heatindex, display_text_color);
-
+  display_text_color = display_color_white;
+  
   last_temp = temp;
   last_heatindex = heatindex;
   last_hum=hum;
@@ -660,7 +664,7 @@ void print_data(float pres, int temp, int hum, int heatindex,uint16_t color){
   }
   tft.setTextSize(2);
   tft.setCursor(x_placement, y_placement+y_offset*2);
-  tft.print(hum+String("% RH"));
+  tft.print(hum+String(" %RH"));
   tft.setCursor(x_placement, y_placement+y_offset*3);
   
   if (pres_setting){
@@ -722,8 +726,8 @@ void error_handling(){
   }
   else{
     if(bme280_error){
-    Serial.println("temp, hum and pres sensor not found");
-  }
+      Serial.println("temp, hum and pres sensor not found");
+    }
   }
 
 }
@@ -759,6 +763,7 @@ void settings_background(){
       case 2: tft.print("return:");break;
     }
   }
+  
 }
 void select(int y){
   for (int x = 0;x < 3; x++){
@@ -791,7 +796,40 @@ void choice(){
     }
   } 
 }
-
+void settings_errors(){
+  int beginning = 80;
+  int offset=15;
+  int now;
+  
+  tft.setTextSize(1);
+  
+  for (int i = 0;i<2;i++){
+    if (i == 0){
+      tft.setCursor(5,beginning);
+      tft.print("errors:");
+      now = beginning + offset;
+    }
+    else if (LoRa_error){
+      tft.setCursor(5,now);
+      tft.print("LoRa not found");
+      now = beginning + offset;
+    }
+    else if (connection_error){
+      tft.setCursor(5,now);
+      tft.print("connection error");
+      now = beginning + offset;
+    }
+    else{
+      if(bme280_error){
+        tft.setCursor(5,now);
+        tft.print("bme280 not found");
+        now = beginning + offset;
+      }
+    }
+  }
+  
+  tft.setTextSize(2);
+}
 void settings(){
   scroll = 0;
   pressed = digitalRead(menu);
@@ -799,6 +837,9 @@ void settings(){
   if (pressed == LOW)
   { //start instellingen
     settings_background();
+    select(scroll);
+    choice();
+    settings_errors();
     Serial.println("entered settings");
     delay(150);
     back = 0;
@@ -860,3 +901,4 @@ void settings(){
     }
   }
 }
+

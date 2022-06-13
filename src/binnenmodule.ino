@@ -21,7 +21,7 @@ bool debugscreen = false;
 #define TFT_DC     5
 
 
-Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS,  TFT_DC, TFT_RST);
+Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
 
 // color definitions
 const uint16_t  display_color_black        = 0x0000;
@@ -40,7 +40,7 @@ const uint16_t  display_color_dark_grey    = 0x7d4b4b;
 
 
 // The colors we actually want to use
-uint16_t        display_text_color         = display_color_white;
+uint16_t        display_text_color          = display_color_white;
 uint16_t        display_background_color    = display_color_blue;
 
 //values of reference for icons overcast
@@ -56,7 +56,7 @@ const uint8_t button_pin1 = 2,button_pin2 = 3, button_pin3 = 4;
 volatile bool is_button_pressed = false;
 bool is_display_visible = false;
 
-unsigned long shutdown_time = 5000, runtime;  // shut_down_time is defined in millisec because of the millis() function which imports the time the arduino has been running in millisec
+unsigned long shutdown_time = 5000, runtime; // shut_down_time is defined in millisec because of the millis() function which imports the time the arduino has been running in millisec
 unsigned long millis_start_lcd, vorige_millis = 0; // millis_start is saved in the settings tab, this needs to be imported from the second a date and time have been given --OBE NIET VERGETEN
 
 int year = 2022, month = 5, day = 30, hours = 18, minutes = 35, sec = 0;
@@ -77,7 +77,7 @@ String dataset_string = ""; // this is the string that the LORA module receives
 //this is needed because the function to get data out of the string doesn't read negative numbers
 
 //temperature
-int mi;  
+int mi;
 int temp = 0;
 
 //feel temperature
@@ -93,7 +93,7 @@ int rain = 0;
 
 float last_temp =20,last_heatindex=20,last_hum=50,last_pres = 1016;
 
-int data;   // is used for a buffer to get data out of the string
+int data; // is used for a buffer to get data out of the string
 
 /////////////////////////////////////////////////////////////////
 // initialise settings variables                               //
@@ -122,15 +122,15 @@ bool LoRa_error = false;
 /////////////////////////////////////////////////////////////////
 
 void setup() {
-  #if (SerialDebugging)
+  if (SerialDebugging){
     Serial.begin(9600); while (!Serial); Serial.println();
-  #endif
+  }
   Serial.print("Hello! ST7735 TFT Test");
 
   delay(250);
 
   // Use this initializer if you're using a 1.8" TFT
-  tft.initR(INITR_BLACKTAB);   // initialize a ST7735S chip, black tab
+  tft.initR(INITR_BLACKTAB); // initialize a ST7735S chip, black tab
 
   // initialise the display
   main_background();
@@ -200,6 +200,7 @@ void time_and_day_upcounter (){
           if (days_in_month[month - 1] < day) {
             day = 1;
             month++;
+          }
         }
       }
     }
@@ -207,12 +208,10 @@ void time_and_day_upcounter (){
       month = 1;
       year++;
     }
-    }
   }
   else if((millis()-vorige_millis)>=1000) {
     //Serial.println((millis()-vorige_millis));
     sec +=((millis()-vorige_millis)/1000);
-    
   }
   vorige_millis = millis();
   Serial.println(String(year)+"-"+String(month)+"-"+String(day)+" "+String(hours)+":"+String(minutes));
@@ -234,7 +233,6 @@ int request(){
     LoRa.print(counter);
     LoRa.endPacket();
   }
-  
   counter++;
   return 1;
 }
@@ -254,7 +252,7 @@ void listen(){
       int packetSize =0; //LoRa.parsePacket(); 
       if (packetSize) {
         // received a packet
-        //Serial.print("Received packet '");
+        //Serial.print("Received packet ");
     
         // read packet
         while (LoRa.available()) {
@@ -264,7 +262,7 @@ void listen(){
         //Serial.println(dataset_string);
         //Serial.println(dataset_string.length());
         // print RSSI of packet
-        //Serial.print("' with RSSI ");
+        //Serial.print(" with RSSI ");
         //Serial.println(LoRa.packetRssi());
         
         hold = 0;
@@ -300,50 +298,55 @@ void get_data_out(){
   data = atof(strtok(data_array,","));
   mi = data;
   //Serial.print(String(mi)+String(count));
-  
+
   while(data != NULL){
-        
+
     data = atof(strtok(NULL, ","));
     //Serial.println("data"+String(data)); 
-    
+
     if (count == 0){
       temp = data;
       //Serial.println(String(temp)+";"+String(count));
       count += 1;
     }
-    
+
     else if (count == 1){
       mifeel = data;
       //Serial.println(String(mifeel)+";"+String(count));
       count += 1;
     }
+
     else if (count == 2){
       heatindex = data;
       //Serial.println(String(heatindex)+";"+String(count));
       count += 1;
     }
+
     else if (count == 3){
       hum = data;
       //Serial.println(String(hum)+";"+String(count));
       count += 1;
     }
+
     else if (count == 4){
       pres = data;
       //Serial.println(String(pres)+";"+String(count));
       count += 1;
     }
+
     else if (count == 5){
       lux = data;
       //Serial.println(String(lux)+";"+String(count));
       count += 1;
     }
+
     else if (count == 6){
       rain = data;
       //Serial.println(String(rain)+";"+String(count));
       count += 1;
-    }  
+    }
   }
-  
+
   //Serial.println("mi"+String(mi));
   if (mi == 3){
     bme280_error = true;
@@ -381,7 +384,7 @@ void get_data_out(){
 void lines(){
   tft.drawLine(55, 0, 55,55, display_color_white);
   tft.drawLine(55, 55, 0,55, display_color_white);
-  
+
 }
 
 /////////////////////////////////////////////////////////////////
@@ -397,7 +400,6 @@ void rain_calc(){
     }
   }
   else if (rain == 1){
-    
   }
 }
 
@@ -438,32 +440,31 @@ void overcast_day(){
 }
 void overcast_dark_and_office(uint16_t color){
   overcast_clear();
-  
+
   tft.fillCircle(sunx+12, suny+11, sun-1, display_color_grey);
   tft.fillCircle(sunx-12, suny+11, sun-5, display_color_grey);
-  
-  
+
+
   tft.fillCircle(sunx+12, suny+11, sun-3, color);
   tft.fillCircle(sunx-9, suny+11, sun-7, color);
   tft.fillCircle(sunx-12, suny+11, sun-7, color);
   tft.fillCircle(sunx-3, suny, sun-5, display_color_grey);
   tft.fillCircle(sunx-3, suny, sun-7, color);
-  
+
   tft.fillCircle(sunx, suny+4, sun-7, color);
-  
 
   tft.fillCircle(sunx+12, suny+11, sun-10, display_color_grey);
   tft.fillCircle(sunx+14, suny+13, sun-9, color);
 }
 
 void overcast_cloudy(){
-  
+
   tft.fillCircle(sunx+10, suny+10, sun-2, display_color_orange);
   tft.fillCircle(sunx-10, suny+10, sun-6, display_color_orange);
-  
+
   tft.fillCircle(sunx+12, suny+11, sun-1, display_color_grey);
   tft.fillCircle(sunx-12, suny+11, sun-5, display_color_grey);
-  
+
   tft.fillCircle(sunx+12, suny+11, sun-3, display_color_white);
   tft.fillCircle(sunx-9, suny+11, sun-7, display_color_white);
   tft.fillCircle(sunx-12, suny+11, sun-7, display_color_white);
@@ -507,7 +508,7 @@ void calc_overcast_light(int day_or_night){
       Serial.println("overcast: "+String(overcast));
     }
   }
-  else if (lux<20  && day_or_night == 1){
+  else if (lux<20 && day_or_night == 1){
     strcpy(overcast,"cloudy");
     if (!debugscreen){
       overcast_cloudy();
@@ -516,9 +517,9 @@ void calc_overcast_light(int day_or_night){
       Serial.println("overcast: "+String(overcast));
     }
   }
-  else if (lux<50  && day_or_night == 1){
+  else if (lux<50 && day_or_night == 1){
   }
-  else if (lux<200  && day_or_night == 0){
+  else if (lux<200 && day_or_night == 0){
     strcpy(overcast,"dark");
     if (!debugscreen){
       overcast_dark_and_office(display_color_dark_grey);
@@ -562,7 +563,7 @@ void calculate_sunrise_set(){
   uint16_t dayinyear;
   int sunset,sunrise;
 
-  
+
   //leapyear calc/////////////////
   if ((year % 4 == 0 && year % 100 != 0) || year % 400 == 0) {
     isleap = 1;
@@ -591,7 +592,7 @@ void calculate_sunrise_set(){
 
   sunrise_set_times[3]= sunrise%60;
   sunrise_set_times[2]= (sunrise-sunrise_set_times[3])/60;
-  
+
 }
 
 
@@ -603,9 +604,9 @@ void day_or_night_calc(char part_of_day[6]){
   calculate_sunrise_set();
   
   if ((hours < sunrise_set_times[0] ) || (hours == sunrise_set_times[0] && minutes < sunrise_set_times[1])||(hours > sunrise_set_times[2] ) || (hours == sunrise_set_times[2] && minutes > sunrise_set_times[3])){
-   strcpy(part_of_day,"night");
-   overcast_night();
-   calc_overcast_light(1);
+    strcpy(part_of_day,"night");
+    overcast_night();
+    calc_overcast_light(1);
   }
   else{
     strcpy(part_of_day,"day");
@@ -624,10 +625,10 @@ void print_BME280_data(float pres, int temp, int hum){
   if (connection_error || bme280_error || LoRa_error){
     display_text_color = display_color_red ;
   }
-  
+
   print_data(pres, temp , hum, heatindex, display_text_color);
   display_text_color = display_color_white;
-  
+
   last_temp = temp;
   last_heatindex = heatindex;
   last_hum=hum;
@@ -640,18 +641,18 @@ void print_BME280_data(float pres, int temp, int hum){
 //on the screen                                                //
 /////////////////////////////////////////////////////////////////
 void print_data(float pres, int temp, int hum, int heatindex,uint16_t color){
-  
+
   int x_placement = 3, y_placement = 60, y_offset = 25;
   tft.setTextColor(color);
-  
+
   tft.setCursor(x_placement, y_placement);
   tft.print(temp);
   if(temp_setting){
-        tft.print("F");
-      }
-      else{
-        tft.print("C");
-      }
+    tft.print("F");
+  }
+  else{
+    tft.print("C");
+  }
   tft.setCursor(x_placement, y_placement+y_offset);
   tft.setTextSize(1);
   tft.print("feels like ");
@@ -666,10 +667,10 @@ void print_data(float pres, int temp, int hum, int heatindex,uint16_t color){
   tft.setCursor(x_placement, y_placement+y_offset*2);
   tft.print(hum+String(" %RH"));
   tft.setCursor(x_placement, y_placement+y_offset*3);
-  
+
   if (pres_setting){
     tft.print(pres);
-    tft.print("bar");      
+    tft.print("bar");
   }
   else{
     tft.print((int)pres);
@@ -683,7 +684,7 @@ void modify_date(){
 
   print_date(last_month, last_day, last_hour, last_minute, display_background_color);
   print_date(month, day, hours, minutes, display_text_color);
-  
+
   last_month = month;
   last_day = day;
   last_hour = hours;
@@ -695,10 +696,10 @@ void modify_date(){
 //on the screen                                                //
 /////////////////////////////////////////////////////////////////
 void print_date(int month,int day,int hour, int minute,uint16_t color){
-  
+
   int x_placement = 58, y_placement = 5, y_offset = 25;
   tft.setTextColor(color);
-  
+
   tft.setCursor(x_placement, y_placement);
   if (hour < 10){
     tft.print("0");
@@ -708,7 +709,7 @@ void print_date(int month,int day,int hour, int minute,uint16_t color){
     tft.print("0");
   }
   tft.print(minute);
-  
+
   tft.setCursor(x_placement, y_placement + y_offset);
   tft.print(month+String("/")+day); 
 }
@@ -753,7 +754,7 @@ void settings_background(){
   tft.fillScreen(display_color_grey);
   tft.setTextColor(display_color_black);
   tft.setTextSize(2);
-  
+
   for (int i = 0;i<3;i++){
     tft.drawLine(0, beginning + i*offset, 127,beginning + i*offset, display_color_black);
     tft.setCursor(5,5 + i* offset);
@@ -763,7 +764,6 @@ void settings_background(){
       case 2: tft.print("return:");break;
     }
   }
-  
 }
 void select(int y){
   for (int x = 0;x < 3; x++){
@@ -787,7 +787,6 @@ void choice(){
       case 1: 
       if (pres_setting){
         tft.print("bar");
-        
       }
       else{
         tft.print("hPa");
@@ -800,9 +799,9 @@ void settings_errors(){
   int beginning = 80;
   int offset=15;
   int now;
-  
+
   tft.setTextSize(1);
-  
+
   for (int i = 0;i<2;i++){
     if (i == 0){
       tft.setCursor(5,beginning);
@@ -827,15 +826,14 @@ void settings_errors(){
       }
     }
   }
-  
+
   tft.setTextSize(2);
 }
 void settings(){
   scroll = 0;
   pressed = digitalRead(menu);
   inst = menu;
-  if (pressed == LOW)
-  { //start instellingen
+  if (pressed == LOW) { //start instellingen
     settings_background();
     select(scroll);
     choice();
@@ -843,33 +841,31 @@ void settings(){
     Serial.println("entered settings");
     delay(150);
     back = 0;
-    while(back == 0)
-    {
-      if(digitalRead(up) == 0){//zet de select zone 1 omhoog
+    while(back == 0) {
+      if(digitalRead(up) == 0){ //zet de select zone 1 omhoog
         if(scroll > 0){
           scroll = scroll - 1;
+          Serial.println(scroll);
+          select(scroll);
+          choice();
+          delay(500); //om de knoppen te debouncen
+        }
+      }
+      if(digitalRead(down) == 0){ //zet de select zone 1 down
+        if(scroll < 2){
+          scroll = scroll + 1;
           Serial.println(scroll);
           select(scroll);
           choice();
           delay(500);//om de knoppen te debouncen
         }
       }
-      if(digitalRead(down) == 0){//zet de select zone 1 down
-          if(scroll < 2){
-            scroll = scroll + 1;
-            Serial.println(scroll);
-            select(scroll);
-            choice();
-            delay(500);//om de knoppen te debouncen
-          }
-      }
-      
-      
+
+
       switch(scroll){
 
         case 0: //temperatuur °C - °F
-        if(digitalRead(menu) == 0)
-        {//selecteer de optie
+        if(digitalRead(menu) == 0) { //selecteer de optie
           temp_setting = !(temp_setting); 
           Serial.println("temp"+String(temp_setting));
           select(scroll);
@@ -878,8 +874,7 @@ void settings(){
         }
         break;
         case 1: //druk bar - P
-        if(digitalRead(menu) == 0)
-        {//selecteer de optie
+        if(digitalRead(menu) == 0) { //selecteer de optie
           pres_setting = !(pres_setting); 
           Serial.println("druk"+String(pres_setting));
           select(scroll);
@@ -889,7 +884,7 @@ void settings(){
         break;
 
         case 2: //terug
-        if(digitalRead(menu) == 0){//selecteer de optie
+        if(digitalRead(menu) == 0) { //selecteer de optie
           back = 1; 
           Serial.println("going back");
           main_background();
@@ -897,8 +892,6 @@ void settings(){
         }
         break;
       }
-      
     }
   }
 }
-

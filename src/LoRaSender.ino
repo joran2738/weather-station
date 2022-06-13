@@ -12,7 +12,7 @@ String dataset_string = ""; // this is the string that the LORA module receives
 //this is needed because the function to get data out of the string doesn't read negative numbers
 
 //temperature
-int mi;  
+int mi;
 int tempe = 0;
 
 //feel temperature
@@ -25,7 +25,7 @@ int presu = 0;
 int light = 0;
 int rain = 0;
 
-int data;   // is used for a buffer to get data out of the string
+int data; // is used for a buffer to get data out of the string
 
 //debugging mode
 bool debug = false;
@@ -49,7 +49,7 @@ void setup() {
 // loop                                                        //
 /////////////////////////////////////////////////////////////////
 void loop() {
-  
+
   hold = request();
   if (hold != 0){
     listen();
@@ -74,7 +74,7 @@ int request(){
     LoRa.print("hello ");
     LoRa.print(counter);
     LoRa.endPacket();
-    }
+  }
   counter++;
   return 1;
 }
@@ -84,9 +84,9 @@ int request(){
 // module                                                      //
 /////////////////////////////////////////////////////////////////
 void listen(){
-  
+
   dataset_string = "";
-  
+
   // try to parse a packet
   while (hold && !debug){
     Serial.println("listening...");
@@ -94,7 +94,7 @@ void listen(){
     if (packetSize) {
       // received a packet
       //Serial.print("Received packet '");
-  
+
       // read packet
       while (LoRa.available()) {
         dataset_string += (char)LoRa.read();
@@ -126,9 +126,9 @@ void get_data_out(){
   data = atof(strtok(data_array,","));
   mi = data;
   //Serial.print(String(mi)+String(count));
-  
+
   while(data != NULL){
-        
+
     data = atof(strtok(NULL, ","));
     //Serial.println("data"+String(data)); 
     
@@ -137,7 +137,7 @@ void get_data_out(){
       //Serial.println(String(tempe)+";"+String(count));
       count += 1;
     }
-    
+
     else if (count == 1){
       mifeel = data;
       //Serial.println(String(mifeel)+";"+String(count));
@@ -167,9 +167,9 @@ void get_data_out(){
       rain = data;
       //Serial.println(String(rain)+";"+String(count));
       count += 1;
-    }  
+    }
   }
-  
+
   //Serial.println("mi"+String(mi));
   Serial.println("temp :"+String(tempe*(((mi-1)*2)-1)));
   //Serial.println("mifeel"+String(mifeel));
@@ -178,9 +178,9 @@ void get_data_out(){
   Serial.println("pres :"+String(presu));
   Serial.println("lux :"+String(light));
   Serial.println("rain :"+String(rain));
-  
+
   //Serial.println(String(rain)+String(counter));
-  
+
   //Serial.println(String(rain==counter));
-  
+
 }

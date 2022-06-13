@@ -390,7 +390,7 @@ void lines(){
 //this function calculates whether there's rain or not         //
 /////////////////////////////////////////////////////////////////
 void rain_calc(){
-  if (rain == 2){
+  if (rain == 1){
     if (!debugscreen){
       rain_icon();
     }
@@ -398,7 +398,7 @@ void rain_calc(){
       Serial.println("it's raining");
     }
   }
-  else if (rain == 1){
+  else if (rain == 2){
   }
 }
 
@@ -913,5 +913,3 @@ void settings(){
     }
   }
 }
-
-

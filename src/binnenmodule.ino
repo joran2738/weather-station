@@ -1,7 +1,7 @@
 /////////////////////////////////////////////////////////////////
 // debugging modes                                             //
 /////////////////////////////////////////////////////////////////
-bool debug = true;
+bool debug = false;
 bool debugscreen = false;
 
 /////////////////////////////////////////////////////////////////
@@ -53,7 +53,7 @@ uint8_t suny = 25,sunx = 25,sun = 16;
 /////////////////////////////////////////////////////////////////
 // initialise RTC variables                                    //
 /////////////////////////////////////////////////////////////////
-const uint8_t button_pin1 = 2,button_pin2 = 3, button_pin3 = 4;
+const uint8_t button_pin1 = 3,button_pin2 = 4, button_pin3 = 5;
 volatile bool is_button_pressed = false;
 bool is_display_visible = false;
 
@@ -99,9 +99,9 @@ int data; // is used for a buffer to get data out of the string
 /////////////////////////////////////////////////////////////////
 // initialise settings variables                               //
 /////////////////////////////////////////////////////////////////
-const int menu = 3;
-const int up = 4;
-const int down = 2;
+const int menu = 4;
+const int up = 5;
+const int down = 3;
 byte pressed = 0;
 byte back = 0;
 bool temp_setting = false;
@@ -126,10 +126,8 @@ void setup() {
   
   Serial.begin(serial_baud); while (!Serial); Serial.println();
   Serial.print("Hello! ST7735 TFT Test");
-
   // Use this initializer if you're using a 1.8" TFT
   tft.initR(INITR_BLACKTAB); // initialize a ST7735S chip, black tab
-
   // initialise the display
   main_background();
 
@@ -138,10 +136,9 @@ void setup() {
   
   Serial.println("LoRa test");
   if (!LoRa.begin(433E6)) {
-    //Serial.println("Starting LoRa failed!");
+    Serial.println("Starting LoRa failed!");
     LoRa_error = true;
   }
-
   pinMode(menu, INPUT_PULLUP);
   pinMode(up, INPUT_PULLUP);
   pinMode(down, INPUT_PULLUP);
@@ -154,6 +151,7 @@ void setup() {
 void loop() {
   // unconditional display, regardless of whether display is visible
   // read the value from the sensor:
+  //Serial.println("pins: "+String(digitalReadOutputPin(TFT_CS))+String(digitalReadOutputPin(10)));//////////////////////////////////////////////////////
   char part_of_day[6];
   hold = request();
   settings();
@@ -225,7 +223,7 @@ int request(){
   Serial.println(counter);
 
   // send packet
-  if (!debug){
+  if (!debug && !LoRa_error){
     LoRa.beginPacket();
     LoRa.print("hello ");
     LoRa.print(counter);
@@ -246,11 +244,11 @@ void listen(){
   // try to parse a packet
   while (try_stop < 5){
     while (hold && listen_stop < 30){
-      //Serial.println("listening...");
-      int packetSize =0; //LoRa.parsePacket(); 
-      if (packetSize) {
+      Serial.println("listening...");
+      int packetsize = LoRa.parsePacket(); 
+      if (packetsize) {
         // received a packet
-        //Serial.print("Received packet ");
+        Serial.print("Received packet ");
     
         // read packet
         while (LoRa.available()) {
@@ -264,6 +262,7 @@ void listen(){
         //Serial.println(LoRa.packetRssi());
         
         hold = 0;
+        return;
       }
       listen_stop++;
     }
@@ -277,6 +276,8 @@ void listen(){
   }
   if (try_stop == 5){
     connection_error = true;
+    hold = 0;
+    dataset_string = "3,24,2,16,55,1016,1600,2";
   }
   if (debug){
     hold = 0;
@@ -912,3 +913,5 @@ void settings(){
     }
   }
 }
+
+

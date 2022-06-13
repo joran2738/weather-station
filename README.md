@@ -5,7 +5,7 @@ De twee arduino’s van zowel binnen als buiten zullen door het net gevoed worde
 Om verschillende zaken in te stellen zoals de tijd of eenheden zullen er ook 3 drukknoppen aanwezig zijn op de module binnen.
 
 V1.0:
-  - RTC clock, not yet configurable in settings
+  - RTC clock, not yet configurable in settings, also not saved in ROM
   - temp and hum units can be changed in settings via 3 button navigation
   - note: getting to the settings menu can take some time, just keep pressing the middle button.(not yet with an interrupt)
   - minimal error detection

@@ -3,23 +3,24 @@
 /////////////////////////////////////////////////////////////////
 bool debug = true;
 bool debugscreen = false;
-#define SerialDebugging true
 
-//initialise libraries
-
+/////////////////////////////////////////////////////////////////
+// include libraries // define baud rate                       //
+/////////////////////////////////////////////////////////////////
 #include <Adafruit_GFX.h>    // Core graphics library
 #include <Adafruit_ST7735.h> // Hardware-specific library
 #include <SPI.h>
 #include <LoRa.h>
 
-//initialise names/ports
+#define serial_baud 9600
 
-// For the breakout, you can use any 2 or 3 pins
-// These pins will also work for the 1.8" TFT shield
-#define TFT_CS     7
-#define TFT_RST    6 // you can also connect this to the Arduino reset // in which case, set this #define pin to 0!
-#define TFT_DC     5
 
+/////////////////////////////////////////////////////////////////
+// initialise names/ports for tft screen                       //
+/////////////////////////////////////////////////////////////////
+#define TFT_CS     8
+#define TFT_RST    7 // you can also connect this to the Arduino reset // in which case, set this #define pin to 0!
+#define TFT_DC     6
 
 Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
 
@@ -122,12 +123,9 @@ bool LoRa_error = false;
 /////////////////////////////////////////////////////////////////
 
 void setup() {
-  if (SerialDebugging){
-    Serial.begin(9600); while (!Serial); Serial.println();
-  }
+  
+  Serial.begin(serial_baud); while (!Serial); Serial.println();
   Serial.print("Hello! ST7735 TFT Test");
-
-  delay(250);
 
   // Use this initializer if you're using a 1.8" TFT
   tft.initR(INITR_BLACKTAB); // initialize a ST7735S chip, black tab
@@ -282,7 +280,7 @@ void listen(){
   }
   if (debug){
     hold = 0;
-    dataset_string = "3,24,2,16,55,1016,3000,2";
+    dataset_string = "3,24,2,16,55,1016,1600,2";
   }
 }
 
@@ -746,6 +744,9 @@ void main_background(){
   }
 }
 
+/////////////////////////////////////////////////////////////////
+// this function sets up the settings screen                   //
+/////////////////////////////////////////////////////////////////
 void settings_background(){
   int beginning = 25;
   int offset=25;
@@ -765,12 +766,21 @@ void settings_background(){
     }
   }
 }
+
+/////////////////////////////////////////////////////////////////
+// this function displays a yellow box so you know in what part//
+// of the settings you're editing                              //
+/////////////////////////////////////////////////////////////////
 void select(int y){
   for (int x = 0;x < 3; x++){
     tft.fillRect(77,(x*25)+1,127,24,display_color_grey);
   }
   tft.fillRect(122,(y*25)+1,127,24,display_color_sun);
 }
+
+/////////////////////////////////////////////////////////////////
+// this function displays the units of the variables             //
+/////////////////////////////////////////////////////////////////
 void choice(){
   int offset=25;
   for (int i = 0;i<2;i++){
@@ -795,6 +805,10 @@ void choice(){
     }
   } 
 }
+
+/////////////////////////////////////////////////////////////////
+// this function prints errors on the settings menu           //
+/////////////////////////////////////////////////////////////////
 void settings_errors(){
   int beginning = 80;
   int offset=15;
@@ -829,11 +843,16 @@ void settings_errors(){
 
   tft.setTextSize(2);
 }
+
+/////////////////////////////////////////////////////////////////
+// this function scrolls through the settings menu and edits   //
+// the units of temp and pres                                  //
+/////////////////////////////////////////////////////////////////
 void settings(){
   scroll = 0;
   pressed = digitalRead(menu);
   inst = menu;
-  if (pressed == LOW) { //start instellingen
+  if (pressed == LOW) { //start settings
     settings_background();
     select(scroll);
     choice();
@@ -842,30 +861,28 @@ void settings(){
     delay(150);
     back = 0;
     while(back == 0) {
-      if(digitalRead(up) == 0){ //zet de select zone 1 omhoog
+      if(digitalRead(up) == 0){ //select zone one up
         if(scroll > 0){
           scroll = scroll - 1;
           Serial.println(scroll);
           select(scroll);
           choice();
-          delay(500); //om de knoppen te debouncen
+          delay(500); //debounce buttons
         }
       }
-      if(digitalRead(down) == 0){ //zet de select zone 1 down
+      if(digitalRead(down) == 0){ //select zone one down
         if(scroll < 2){
           scroll = scroll + 1;
           Serial.println(scroll);
           select(scroll);
           choice();
-          delay(500);//om de knoppen te debouncen
+          delay(500);//debounce buttons
         }
       }
 
-
       switch(scroll){
-
         case 0: //temperatuur °C - °F
-        if(digitalRead(menu) == 0) { //selecteer de optie
+        if(digitalRead(menu) == 0) { //select option
           temp_setting = !(temp_setting); 
           Serial.println("temp"+String(temp_setting));
           select(scroll);
@@ -874,7 +891,7 @@ void settings(){
         }
         break;
         case 1: //druk bar - P
-        if(digitalRead(menu) == 0) { //selecteer de optie
+        if(digitalRead(menu) == 0) { //select option
           pres_setting = !(pres_setting); 
           Serial.println("druk"+String(pres_setting));
           select(scroll);
@@ -884,7 +901,7 @@ void settings(){
         break;
 
         case 2: //terug
-        if(digitalRead(menu) == 0) { //selecteer de optie
+        if(digitalRead(menu) == 0) { //select option
           back = 1; 
           Serial.println("going back");
           main_background();

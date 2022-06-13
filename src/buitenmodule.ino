@@ -57,16 +57,16 @@ void setup() {
   bme280_error = check_bme280_presence();
 
   switch(bme.chipModel()){
-     case BME280::ChipModel_BME280:
-       Serial.println("Found BME280 sensor! Success.");
-       break;
-     case BME280::ChipModel_BMP280:
-       Serial.println("Found BMP280 sensor! No Humidity available.");
-       bme280_error = true;
-       break;
-     default:
-       Serial.println("Found UNKNOWN sensor! Error!");
-       bme280_error = true;
+    case BME280::ChipModel_BME280:
+      Serial.println("Found BME280 sensor! Success.");
+      break;
+    case BME280::ChipModel_BMP280:
+      Serial.println("Found BMP280 sensor! No Humidity available.");
+      bme280_error = true;
+      break;
+    default:
+      Serial.println("Found UNKNOWN sensor! Error!");
+      bme280_error = true;
   }
 
   Serial.println("LoRa Receiver");
@@ -115,7 +115,7 @@ int wait(){
     int packetSize = LoRa.parsePacket();
     if (packetSize) {
       // received a packet
-      Serial.print("Received packet '");
+      Serial.print("Received packet ");
   
       // read packet
       while (LoRa.available()) {
@@ -123,7 +123,7 @@ int wait(){
       }
   
       // print RSSI of packet
-      Serial.print("' with RSSI ");
+      Serial.print(" with RSSI ");
       Serial.println(LoRa.packetRssi());
       return 1;
     }
@@ -145,7 +145,6 @@ void reply(){
     LoRa.print(dataset_string);
     LoRa.endPacket();
   }
-  
 }
 
 //////////////////////////////////////////////////////////////////
@@ -153,13 +152,13 @@ void reply(){
 //////////////////////////////////////////////////////////////////
 void read_bme() {
 
-   BME280::TempUnit tempUnit(BME280::TempUnit_Celsius);
-   BME280::PresUnit presUnit(BME280::PresUnit_hPa);
-   EnvironmentCalculations::TempUnit     envTempUnit =  EnvironmentCalculations::TempUnit_Celsius;
+  BME280::TempUnit tempUnit(BME280::TempUnit_Celsius);
+  BME280::PresUnit presUnit(BME280::PresUnit_hPa);
+  EnvironmentCalculations::TempUnit     envTempUnit = EnvironmentCalculations::TempUnit_Celsius;
 
-   bme.read(pres, temp, hum, tempUnit, presUnit);
+  bme.read(pres, temp, hum, tempUnit, presUnit);
 
-   heatindex = EnvironmentCalculations::HeatIndex(temp, hum, envTempUnit);
+  heatindex = EnvironmentCalculations::HeatIndex(temp, hum, envTempUnit);
 
 }
 
@@ -169,7 +168,6 @@ void read_bme() {
 void read_rain(){
   rain_value = analogRead(rain_pin);
   //Serial.println(rain_value);
-  
 }
 
 //////////////////////////////////////////////////////////////////
@@ -186,7 +184,6 @@ void read_LDR(){
   res = (voltage /((5 - voltage)/ 4.610));
   lux = 500 / res;
   //Serial.print(lux);
-  
 }
 //////////////////////////////////////////////////////////////////
 // this function puts all the data together in a string to send //
@@ -245,7 +242,6 @@ void to_string(){
   if (debug_LoRa){
     Serial.println(dataset_string);
   }
-  
 }
 
 //////////////////////////////////////////////////////////////////

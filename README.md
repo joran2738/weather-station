@@ -4,3 +4,4 @@ De modulle buiten zal sensoren bevatten voor de temperatuur, luchtvochtigheid, l
 De twee arduino’s van zowel binnen als buiten zullen door het net gevoed worden en communiceren draadloos met elkaar via lora modules.
 Om verschillende zaken in te stellen zoals de tijd of eenheden zullen er ook 5 drukknoppen aanwezig zijn op de module binnen.
 
+V1.0 can be seen in the branch: "adding-things together".
